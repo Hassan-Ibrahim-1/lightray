@@ -60,7 +60,7 @@ pub fn debug(
 
 /// Returns a scoped logging namespace that logs all messages using the scope
 /// provided here.
-pub fn Scoped(comptime scope: @Type(.enum_literal)) type {
+pub fn scoped(comptime scope: @Type(.enum_literal)) type {
     return struct {
         /// Log an error message. This log level is intended to be used
         /// when something has gone wrong. This might be recoverable or might

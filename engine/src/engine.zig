@@ -70,7 +70,7 @@ pub const fs = Fs.init(&.{
     .save_dir = "engine/save-files/",
 });
 
-const log = debug.log.Scoped(.engine);
+const log = debug.log.scoped(.engine);
 const GPA = std.heap.DebugAllocator(.{ .safety = true });
 pub const Application = struct {
     init: *const fn () anyerror!void,

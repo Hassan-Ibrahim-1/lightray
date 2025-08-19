@@ -6,7 +6,7 @@ const glfw = engine.glfw;
 const input = engine.input;
 const Key = input.Key;
 const Action = input.Action;
-const log = engine.debug.log.Scoped(.Window);
+const log = engine.debug.log.scoped(.Window);
 const builtin = @import("builtin");
 
 const Window = @This();
