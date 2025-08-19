@@ -1,0 +1,76 @@
+# Smooth Grass Blade Model (OBJ Format) - Triangles Only
+# The blade is built as a curved narrow strip.
+# The centerline is defined as: C(v) = (0.5*v^2, v, 0.02*sin(2*pi*v))
+# A constant blade width of 0.02 is applied along the blade.
+# Texture coordinates (vt) map u=0 (left) and u=1 (right) with v as the blade’s length.
+# Normals (vn) are approximated per row for smooth shading.
+# All faces are defined as triangles.
+
+# --- Vertex Positions ---
+# Row 0 (v = 0.0)
+v -0.01000 0.00000 0.00000
+v  0.01000 0.00000 0.00000
+# Row 1 (v = 0.2)
+v  0.01020 0.20196 0.01902
+v  0.02980 0.19804 0.01902
+# Row 2 (v = 0.4)
+v  0.07071 0.40371 0.01176
+v  0.08929 0.39629 0.01176
+# Row 3 (v = 0.6)
+v  0.17142 0.60514 -0.01176
+v  0.18858 0.59486 -0.01176
+# Row 4 (v = 0.8)
+v  0.31220 0.80624 -0.01902
+v  0.32780 0.79376 -0.01902
+# Row 5 (v = 1.0)
+v  0.49293 1.00707 0.00000
+v  0.50707 0.99293 0.00000
+
+# --- Texture Coordinates ---
+vt 0.00000 0.00000
+vt 1.00000 0.00000
+
+vt 0.00000 0.20000
+vt 1.00000 0.20000
+
+vt 0.00000 0.40000
+vt 1.00000 0.40000
+
+vt 0.00000 0.60000
+vt 1.00000 0.60000
+
+vt 0.00000 0.80000
+vt 1.00000 0.80000
+
+vt 0.00000 1.00000
+vt 1.00000 1.00000
+
+# --- Vertex Normals ---
+vn 0.0000  0.1250 -0.9922   # Row 0
+vn 0.0075  0.0373 -0.9988   # Row 1
+vn -0.0347 -0.0874 -0.9951  # Row 2
+vn -0.0446 -0.0745 -0.9960  # Row 3
+vn 0.0189  0.0237 -0.9974   # Row 4
+vn 0.0625  0.0625 -0.9920   # Row 5
+
+# --- Face Definitions (Triangles Only) ---
+# Quad 1 (Row 0 to Row 1) split into two triangles
+f 1/1/1 2/2/1 4/4/2
+f 1/1/1 4/4/2 3/3/2
+
+# Quad 2 (Row 1 to Row 2)
+f 3/3/2 4/4/2 6/6/3
+f 3/3/2 6/6/3 5/5/3
+
+# Quad 3 (Row 2 to Row 3)
+f 5/5/3 6/6/3 8/8/4
+f 5/5/3 8/8/4 7/7/4
+
+# Quad 4 (Row 3 to Row 4)
+f 7/7/4 8/8/4 10/10/5
+f 7/7/4 10/10/5 9/9/5
+
+# Quad 5 (Row 4 to Row 5)
+f 9/9/5 10/10/5 12/12/6
+f 9/9/5 12/12/6 11/11/6
+
