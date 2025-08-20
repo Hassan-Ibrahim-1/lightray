@@ -1,9 +1,11 @@
 const std = @import("std");
-const math = @import("math.zig");
+
+const engine = @import("engine.zig");
+const Transform = engine.Transform;
+const math = engine.math;
 const Vec2 = math.Vec2;
 const Vec3 = math.Vec3;
 const Mat4 = math.Mat4;
-const Transform = @import("Transform.zig");
 
 pub const Direction = enum {
     forward,
@@ -126,6 +128,20 @@ pub fn processMouseMovement(
         }
     }
     self.updateVectors();
+}
+
+pub fn castRay(self: *const Camera, to: Vec2) math.Ray {
+    const world_pos = math.screenToWorldPoint(
+        to,
+        self.getViewMatrix(),
+        self.getPerspectiveMatrix(),
+        engine.windowSize().as(f32),
+    );
+    const dir = world_pos.sub(self.transform.position).normalized();
+    return .{
+        .origin = self.transform.position,
+        .direction = dir,
+    };
 }
 
 pub fn processMouseScroll(self: *Camera, y_offset: f32) void {

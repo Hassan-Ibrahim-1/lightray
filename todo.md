@@ -12,3 +12,11 @@ raytracing stuff
     - be able to setup a scene using normal rendering
     - hit a key to ray trace the scene, the rt should be progressive. refer to sebastian lague's videos for this
     - understand rt math
+
+moving things around
+    - a gizmo model
+    - figure out when the mouse intersects with this model
+    - figure out how to move the object based on how the mouse moves and what
+        axis is selected
+
+simd math

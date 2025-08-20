@@ -20,7 +20,11 @@ const input = engine.input;
 
 const log = debug.log.scoped(.main);
 
-fn init() !void {}
+fn init() !void {
+    const scene = engine.scene();
+    const actor = scene.createActor("cube");
+    actor.render_item.loadModelData(renderer.cubeModel());
+}
 
 fn update() !void {}
 

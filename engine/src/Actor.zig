@@ -4,11 +4,13 @@ const engine = @import("engine.zig");
 const Mesh = engine.Mesh;
 const RenderItem = engine.RenderItem;
 const Transform = engine.Transform;
+const BoundingBox = engine.physics.BoundingBox;
 
 const Actor = @This();
 
-transform: Transform = Transform{},
+transform: Transform = .{},
 render_item: RenderItem,
+bounding_box: BoundingBox = .{},
 /// don't mutate this yourself
 id: usize = 0,
 

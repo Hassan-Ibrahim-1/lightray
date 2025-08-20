@@ -524,9 +524,9 @@ pub fn sendLightData(shader: *Shader) void {
 
     debug.checkGlError();
     shader.setVec3("view_pos", engine.camera().transform.position);
-    shader.setInt("n_point_lights_used", @intCast(scene.pointLightCount()));
-    shader.setInt("n_spot_lights_used", @intCast(scene.spotLightCount()));
-    shader.setInt("n_dir_lights_used", @intCast(scene.dirLightCount()));
+    shader.setInt("n_point_lights_used", @intCast(scene.point_lights.count()));
+    shader.setInt("n_spot_lights_used", @intCast(scene.spot_lights.count()));
+    shader.setInt("n_dir_lights_used", @intCast(scene.dir_lights.count()));
 
     var p_iter = scene.point_lights.iterator();
     var i: usize = 0;

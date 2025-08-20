@@ -8,6 +8,7 @@ pub const gl = @import("gl");
 pub const ig_raw = @import("cimgui");
 
 pub const Actor = @import("Actor.zig");
+pub const Billboard = @import("Billboard.zig");
 pub const Camera = @import("Camera.zig");
 pub const cast = @import("cast.zig");
 pub const Color = @import("Color.zig");
@@ -31,6 +32,7 @@ pub const math = @import("math.zig");
 const Vec3 = math.Vec3;
 const Vec2 = math.Vec2;
 pub const Model = @import("Model.zig");
+pub const physics = @import("physics/physics.zig");
 pub const renderer = @import("renderer/renderer.zig");
 pub const RenderItem = @import("renderer/RenderItem.zig");
 pub const Scene = @import("Scene.zig");
@@ -44,7 +46,6 @@ const Size = utils.Size;
 pub const Vertex = @import("vertex.zig");
 pub const VertexBuffer = @import("VertexBuffer.zig");
 pub const Window = @import("Window.zig");
-pub const Billboard = @import("Billboard.zig");
 
 pub const ComputeShader = if (builtin.os.tag != .macos) val: {
     break :val @import("ComputeShader.zig");

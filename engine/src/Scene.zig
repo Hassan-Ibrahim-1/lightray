@@ -1,7 +1,7 @@
 const std = @import("std");
 const engine = @import("engine.zig");
 const debug = engine.debug;
-const log = debug.log;
+const log = debug.log.scoped(.Scene);
 const assert = debug.assert;
 const Actor = engine.Actor;
 const Allocator = std.mem.Allocator;
@@ -65,7 +65,7 @@ pub fn createPointLight(self: *Scene, name: []const u8) *PointLight {
     const light = self.allocator.create(PointLight) catch unreachable;
     light.* = PointLight{};
     assert(
-        self.pointLightCount() < max_point_lights,
+        self.point_lights.count() < max_point_lights,
         "Too many point lights",
         .{},
     );
@@ -80,7 +80,7 @@ pub fn createSpotLight(self: *Scene, name: []const u8) *SpotLight {
     const light = self.allocator.create(SpotLight) catch unreachable;
     light.* = SpotLight{};
     assert(
-        self.spotLightCount() < max_spot_lights,
+        self.spot_lights.count() < max_spot_lights,
         "Too many spot lights",
         .{},
     );
@@ -96,7 +96,7 @@ pub fn createDirLight(self: *Scene, name: []const u8) *DirLight {
     const light = self.allocator.create(DirLight) catch unreachable;
     light.* = DirLight{};
     assert(
-        self.dirLightCount() < max_dir_lights,
+        self.dir_lights.count() < max_dir_lights,
         "Too many dir lights",
         .{},
     );
@@ -146,23 +146,11 @@ pub fn deleteActorByName(self: *Scene, name: []const u8) void {
     }
 }
 
-pub fn pointLightCount(self: *const Scene) usize {
-    return self.point_lights.count();
-}
-
-pub fn spotLightCount(self: *const Scene) usize {
-    return self.spot_lights.count();
-}
-
-pub fn dirLightCount(self: *const Scene) usize {
-    return self.dir_lights.count();
-}
-
 pub fn hasLights(self: *const Scene) bool {
     // zig fmt: off
-    return self.pointLightCount() > 0
-        or self.spotLightCount() > 0
-        or self.dirLightCount() > 0;
+    return self.point_lights.count() > 0
+        or self.spot_lights.count() > 0
+        or self.dir_lights.count() > 0;
 }
 
 pub fn clearActors(self: *Scene) void {
@@ -195,19 +183,19 @@ pub fn clearLights(self: *Scene) void {
 }
 
 pub fn nameTaken(self: *const Scene, name: []const u8) bool {
-    if (self.actors.get(name)) |_| {
+    if (self.actors.get(name) != null) {
         return true;
     }
 
-    if (self.point_lights.get(name)) |_| {
+    if (self.point_lights.get(name) != null) {
         return true;
     }
 
-    if (self.spot_lights.get(name)) |_| {
+    if (self.spot_lights.get(name) != null)  {
         return true;
     }
 
-    if (self.dir_lights.get(name)) |_| {
+    if (self.dir_lights.get(name) != null) {
         return true;
     }
     return false;
@@ -246,6 +234,27 @@ pub fn setSkyboxHidden(self: *Scene, hidden: bool) void {
     self._skybox_hidden = hidden;
 }
 
+const math = engine.math;
+const Vec3 = math.Vec3;
+
+pub const HitInfo = struct { 
+    hit: bool,
+    hit_point: Vec3,
+    distance: f32,
+};
+
+const Ray = math.Ray;
+
+pub fn getMouseHit() ?*Actor {
+    return raycastHit(engine.input.mouseCastRay());
+}
+
+pub fn raycastHit(ray: Ray) ?*Actor {
+    _ = ray; // autofix
+
+}
+
+// this is pretty stupid
 var current_id: usize = 0;
 fn generateId() usize {
     current_id += 1;

@@ -138,6 +138,19 @@ pub fn unProject(
     return Vec3.fromVec4(result);
 }
 
+pub const Size = engine.utils.Size;
+
+pub fn screenToWorldPoint(
+    screen_pos: Vec2,
+    view: *const Mat4,
+    proj: *const Mat4,
+    screen_size: Size(f32),
+) Vec3 {
+    const viewport = Vec4.init(0, 0, screen_size.width, screen_size.height);
+    const win = Vec3.init(screen_pos.x, viewport.w - screen_pos.y, 0.0);
+    return unProject(win, view, proj, viewport);
+}
+
 pub const Mat4 = extern struct {
     const ValueType = f32;
 
