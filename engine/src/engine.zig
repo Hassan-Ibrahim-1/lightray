@@ -119,7 +119,7 @@ pub fn init(init_info: *const EngineInitInfo) !void {
     initImGui(init_info);
     state.models = .init(state.arena.allocator());
 
-    renderer.init(state.alloc);
+    try renderer.init(state.alloc);
     input.init(state.alloc);
     try text.init(state.alloc);
     editor.init();
@@ -266,7 +266,7 @@ fn update() void {
 
     state.app.update() catch unreachable;
 
-    renderer.render();
+    renderer.render(.{ .render_bounding_boxes = true });
 
     updateImGui();
 

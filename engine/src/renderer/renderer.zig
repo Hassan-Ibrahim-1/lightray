@@ -186,11 +186,13 @@ const State = struct {
             }
         },
     };
+
     alloc: Allocator,
     shaders: Shaders,
     camera: *Camera,
     user_shaders: *StringHashMap(*Shader),
     rect_mesh: Mesh,
+    bounding_box_mesh: Mesh,
     cube_model: *Model,
 
     buffers: Buffers,
@@ -199,11 +201,11 @@ const State = struct {
 
 var state: State = undefined;
 
-pub fn init(allocator: Allocator) void {
+pub fn init(allocator: Allocator) !void {
     state.alloc = allocator;
     state.billboards = .empty;
     initShaders();
-    initModels();
+    try initModels();
     initBuffers();
     gl.PointSize(10);
     state.user_shaders = engine.userShaders();
@@ -216,9 +218,27 @@ pub fn deinit() void {
     state.billboards.deinit(state.alloc);
 }
 
-pub fn initModels() void {
+pub fn initModels() Allocator.Error!void {
     state.cube_model = engine.loadModel(fs.modelPath("cube.glb"));
-    initRect();
+    try initRect();
+
+    const cube_mesh: *const Mesh = &state.cube_model.meshes.items[0];
+    state.bounding_box_mesh = .init(state.alloc);
+    state.bounding_box_mesh.vertex_buffer =
+        try cube_mesh.vertex_buffer.clone();
+
+    state.bounding_box_mesh.draw_command = .{
+        .mode = .lines,
+        .vertex_count = state.bounding_box_mesh
+            .vertex_buffer
+            .indices
+            .items
+            .len,
+        .type = .draw_elements,
+        .instance_count = 0,
+    };
+    log.info("vertices: {any}", .{state.bounding_box_mesh.vertex_buffer.vertices.items});
+    state.bounding_box_mesh.sendData();
 }
 
 fn initBuffers() void {
@@ -243,7 +263,7 @@ fn deinitBuffers() void {
     state.buffers.billboard.deinit();
 }
 
-fn initRect() void {
+fn initRect() Allocator.Error!void {
     const vertices = [_]Vertex{
         .fromPos(.init(0.5, 0.5, 0)),
         .fromPos(.init(0.5, -0.5, 0)),
@@ -257,22 +277,15 @@ fn initRect() void {
     };
 
     state.rect_mesh = .init(state.alloc);
-    state
-        .rect_mesh
-        .vertex_buffer
-        .vertices
-        .appendSlice(vertices[0..]) catch unreachable;
-    state
-        .rect_mesh
-        .vertex_buffer
-        .indices
-        .appendSlice(indices[0..]) catch unreachable;
+    try state.rect_mesh.vertex_buffer.vertices.appendSlice(vertices[0..]);
+    try state.rect_mesh.vertex_buffer.indices.appendSlice(indices[0..]);
     state.rect_mesh.createDrawCommand();
     state.rect_mesh.sendData();
 }
 
 fn deinitModels() void {
     state.rect_mesh.deinit();
+    state.bounding_box_mesh.deinit();
 }
 
 fn initShaders() void {
@@ -361,7 +374,11 @@ pub fn endFrame() void {
     state.billboards.clearRetainingCapacity();
 }
 
-pub fn render() void {
+pub const RenderConfig = struct {
+    render_bounding_boxes: bool = false,
+};
+
+pub fn render(config: RenderConfig) void {
     state.camera = engine.camera();
 
     const view = state.camera.getViewMatrix();
@@ -371,7 +388,7 @@ pub fn render() void {
     renderLights(engine.scene());
 
     updateBuffers();
-    renderActors();
+    renderActors(config);
     renderBillboards();
 
     if (!engine.scene()._skybox_hidden) {
@@ -403,16 +420,35 @@ fn setCameraMatrices(view: *const Mat4, proj: *const Mat4) void {
     }
 }
 
-fn renderActors() void {
+fn renderActors(config: RenderConfig) void {
     const scene = engine.scene();
-    var iter = scene.actors.iterator();
     if (scene.hasLights()) {
         sendLightData(&state.shaders.light_mesh);
         // sendLightData(&state.shaders.light_textured_mesh);
     }
+
+    var iter = scene.actors.valueIterator();
     while (iter.next()) |actor| {
-        renderActor(actor.value_ptr.*);
+        renderActor(actor.*);
+        if (config.render_bounding_boxes) {
+            renderBoundingBox(actor.*.bounding_box);
+        }
     }
+}
+
+const BoundingBox = engine.physics.BoundingBox;
+
+fn renderBoundingBox(bb: BoundingBox) void {
+    const tf = Transform{
+        .position = bb.max.add(bb.min).mulValue(0.5),
+        .scale = bb.max.sub(bb.min),
+    };
+    const shader = &state.shaders.basic_mesh;
+    shader.use();
+    shader.setMat4("model", &tf.mat4());
+    shader.setVec3("material.color", Color.green.clampedVec3());
+
+    renderMesh(&state.bounding_box_mesh);
 }
 
 fn renderBillboards() void {

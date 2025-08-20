@@ -19,8 +19,8 @@ pub fn getMouseHit() ?*Actor {
 }
 
 pub const BoundingBox = struct {
-    min: Vec3,
-    max: Vec3,
+    min: Vec3 = .zero,
+    max: Vec3 = .zero,
 
     pub fn intersectsWithRay(
         self: *const BoundingBox,
@@ -39,6 +39,11 @@ pub const BoundingBox = struct {
             .direction = inverse_model.mulVec4(Vec4.fromVec3(ray.direction)),
         };
         return rayAABoxIntersection(local_ray, self);
+    }
+
+    pub fn insertMesh(self: *BoundingBox, mesh: *const engine.Mesh) void {
+        self.min = Vec3.min(self.min, mesh.min());
+        self.max = Vec3.max(self.max, mesh.max());
     }
 };
 

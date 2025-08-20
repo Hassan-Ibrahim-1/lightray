@@ -53,6 +53,14 @@ pub fn deinit(self: *VertexBuffer) void {
     }
 }
 
+// only clones cpu memory. call the send* functions to clone gpu memory
+pub fn clone(self: *const VertexBuffer) Allocator.Error!VertexBuffer {
+    var new = VertexBuffer.init(self.allocator);
+    new.vertices = try self.vertices.clone();
+    new.indices = try self.indices.clone();
+    return new;
+}
+
 pub fn setVao(self: *VertexBuffer, vao: c_uint) void {
     assert(self.vao == null, "Already have a set vao", .{});
     self.vao = vao;

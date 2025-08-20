@@ -6,7 +6,6 @@ const log = engine.debug.log;
 const Vec2 = math.Vec2;
 const Vec3 = math.Vec3;
 const ArrayList = std.ArrayList;
-const Vertex = @import("vertex.zig").Vertex;
 const Allocator = std.mem.Allocator;
 const VertexBuffer = @import("VertexBuffer.zig");
 const assert = engine.debug.assert;
@@ -117,7 +116,32 @@ pub const Mesh = struct {
         }
     }
 
+    pub fn min(self: *const Mesh) Vec3 {
+        var v = self.vertex_buffer.vertices.items[0].position;
+        for (self.vertex_buffer.vertices.items[1..]) |vertex| {
+            v = Vec3.min(v, vertex.position);
+        }
+        return v;
+    }
+
+    pub fn max(self: *const Mesh) Vec3 {
+        var v = self.vertex_buffer.vertices.items[0].position;
+        for (self.vertex_buffer.vertices.items[1..]) |vertex| {
+            v = Vec3.max(v, vertex.position);
+        }
+        return v;
+    }
+
     pub fn buffersCreated(self: *const Mesh) bool {
         return self.draw_command != null;
+    }
+
+    // clones cpu and gpu memory
+    pub fn clone(self: *const Mesh) Allocator.Error!Mesh {
+        return Mesh{
+            .allocator = self.allocator,
+            .draw_command = self.draw_command,
+            .vertex_buffer = try self.vertex_buffer.clone(),
+        };
     }
 };

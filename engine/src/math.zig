@@ -597,6 +597,24 @@ pub const Vec4 = extern struct {
         return self.mulValue(1.0 / value);
     }
 
+    pub fn min(a: Vec4, b: Vec4) Vec4 {
+        return .{
+            .x = @min(a.x, b.x),
+            .y = @min(a.y, b.y),
+            .z = @min(a.z, b.z),
+            .w = @min(a.w, b.w),
+        };
+    }
+
+    pub fn max(a: Vec4, b: Vec4) Vec4 {
+        return .{
+            .x = @max(a.x, b.x),
+            .y = @max(a.y, b.y),
+            .z = @max(a.z, b.z),
+            .w = @max(a.w, b.w),
+        };
+    }
+
     pub fn add(self: Vec4, other: Vec4) Vec4 {
         return .{
             .x = self.x + other.x,
@@ -668,10 +686,10 @@ pub const Vec4 = extern struct {
         );
     }
 
-    pub fn random(min: f32, max: f32) Vec4 {
+    pub fn random(min_bound: f32, max_bound: f32) Vec4 {
         return Vec4.init(
-            randomFloat(f32, min, max),
-            randomFloat(f32, min, max),
+            randomFloat(f32, min_bound, max_bound),
+            randomFloat(f32, min_bound, max_bound),
             randomFloat01(f32),
         );
     }
@@ -804,6 +822,22 @@ pub const Vec3 = extern struct {
         // };
     }
 
+    pub fn min(a: Vec3, b: Vec3) Vec3 {
+        return .{
+            .x = @min(a.x, b.x),
+            .y = @min(a.y, b.y),
+            .z = @min(a.z, b.z),
+        };
+    }
+
+    pub fn max(a: Vec3, b: Vec3) Vec3 {
+        return .{
+            .x = @max(a.x, b.x),
+            .y = @max(a.y, b.y),
+            .z = @max(a.z, b.z),
+        };
+    }
+
     pub fn add(self: Vec3, other: Vec3) Vec3 {
         return .{
             .x = self.x + other.x,
@@ -900,11 +934,11 @@ pub const Vec3 = extern struct {
         );
     }
 
-    pub fn random(min: f32, max: f32) Vec3 {
+    pub fn random(min_bound: f32, max_bound: f32) Vec3 {
         return Vec3.init(
-            randomFloat(f32, min, max),
-            randomFloat(f32, min, max),
-            randomFloat(f32, min, max),
+            randomFloat(f32, min_bound, max_bound),
+            randomFloat(f32, min_bound, max_bound),
+            randomFloat(f32, min_bound, max_bound),
         );
     }
 
@@ -1000,6 +1034,21 @@ pub const Vec2 = extern struct {
         return self.mulValue(1.0 / value);
     }
 
+    pub fn min(a: Vec2, b: Vec2) Vec2 {
+        return .{
+            .x = @min(a.x, b.x),
+            .y = @min(a.y, b.y),
+        };
+    }
+
+    pub fn max(a: Vec2, b: Vec2) Vec2 {
+        return .{
+            .x = @max(a.x, b.x),
+            .y = @max(a.y, b.y),
+        };
+    }
+
+
     pub fn add(self: Vec2, other: Vec2) Vec2 {
         return .{
             .x = self.x + other.x,
@@ -1067,10 +1116,10 @@ pub const Vec2 = extern struct {
         );
     }
 
-    pub fn random(min: f32, max: f32) Vec2 {
+    pub fn random(min_bounds: f32, max_bounds: f32) Vec2 {
         return Vec2.init(
-            randomFloat(f32, min, max),
-            randomFloat(f32, min, max),
+            randomFloat(f32, min_bounds, max_bounds),
+            randomFloat(f32, min_bounds, max_bounds),
         );
     }
 

@@ -23,7 +23,13 @@ const log = debug.log.scoped(.main);
 fn init() !void {
     const scene = engine.scene();
     const actor = scene.createActor("cube");
-    actor.render_item.loadModelData(renderer.cubeModel());
+    const m = actor.render_item.createMesh();
+    m.* = try renderer.cubeModel().meshes.items[0].clone();
+    m.sendData();
+
+    for (actor.render_item.meshes.items) |*mesh| {
+        actor.bounding_box.insertMesh(mesh);
+    }
 }
 
 fn update() !void {}
