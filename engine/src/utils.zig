@@ -1,11 +1,11 @@
 const std = @import("std");
-const root = @import("engine.zig");
-const log = root.debug.log;
-const math = root.math;
+const engine = @import("engine.zig");
+const log = engine.debug.log;
+const math = engine.math;
 const Vec3 = math.Vec3;
 const Vec2 = math.Vec2;
 const Mat4 = math.Mat4;
-const Vertex = root.Vertex;
+const Vertex = engine.Vertex;
 const Allocator = std.mem.Allocator;
 
 pub fn Pair(T: type, V: type) type {
@@ -94,12 +94,11 @@ pub fn findAll(
     return al.toOwnedSlice();
 }
 
-pub fn toNdc(screen_space: Vec2) Vec2 {
-    const win_size = root.windowSize().as(f32);
-    return .init(
-        2.0 * screen_space.x / win_size.width - 1.0,
-        1.0 - 2.0 * screen_space.y / win_size.height,
-    );
+pub fn toNdc(mouse: Vec2, window: Vec2) Vec2 {
+    return .{
+        .x = (2.0 * mouse.x / window.x) - 1.0,
+        .y = 1.0 - (2.0 * mouse.y / window.y), // flip Y
+    };
 }
 
 pub fn pointInCircle(
@@ -145,7 +144,7 @@ pub fn Interval(
         _value: T,
 
         pub fn init(x: T) Self {
-            root.debug.assert(
+            engine.debug.assert(
                 inBounds(x),
                 "(Interval) expected a value in the range [{d}, {d}] got {d}",
                 .{ min, max, x },
@@ -157,7 +156,7 @@ pub fn Interval(
 
         /// asserts that x is in the specified range
         pub fn set(self: Self, x: T) void {
-            root.debug.assert(
+            engine.debug.assert(
                 inBounds(x),
                 "(Interval) expected a value in the range [{d}, {d}] got {d}",
                 .{ min, max, x },
@@ -174,4 +173,3 @@ pub fn Interval(
         }
     };
 }
-

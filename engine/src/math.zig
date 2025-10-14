@@ -138,24 +138,9 @@ pub fn unProject(
     return Vec3.fromVec4(result);
 }
 
-pub const Size = engine.utils.Size;
-
-pub fn screenToWorldPoint(
-    screen_pos: Vec2,
-    view: *const Mat4,
-    proj: *const Mat4,
-    screen_size: Size(f32),
-) Vec3 {
-    const viewport = Vec4.init(0, 0, screen_size.width, screen_size.height);
-    const win = Vec3.init(screen_pos.x, viewport.w - screen_pos.y, 0.0);
-    return unProject(win, view, proj, viewport);
-}
-
 pub const Mat4 = extern struct {
-    const ValueType = f32;
-
     pub const identity = Mat4{
-        .data = [_]ValueType{
+        .data = [_]f32{
             1, 0, 0, 0,
             0, 1, 0, 0,
             0, 0, 1, 0,
@@ -164,9 +149,9 @@ pub const Mat4 = extern struct {
     };
 
     // Column-major order for GLSL compatibility
-    data: [16]ValueType = [_]ValueType{0} ** 16,
+    data: [16]f32 = [_]f32{0} ** 16,
 
-    pub fn init(values: [16]ValueType) Mat4 {
+    pub fn init(values: [16]f32) Mat4 {
         return Mat4{ .data = values };
     }
 
@@ -204,7 +189,7 @@ pub const Mat4 = extern struct {
         };
     }
 
-    pub fn mulValue(self: *const Mat4, value: ValueType) Mat4 {
+    pub fn mulValue(self: *const Mat4, value: f32) Mat4 {
         var result: Mat4 = self.*;
         for (&result.data) |*val| {
             val.* *= value;
@@ -230,7 +215,7 @@ pub const Mat4 = extern struct {
 
     // rotations are in radians
 
-    pub fn rotateX(mat: *const Mat4, angle: ValueType) Mat4 {
+    pub fn rotateX(mat: *const Mat4, angle: f32) Mat4 {
         var result = Mat4.identity;
         const cs = @cos(angle);
         const s = @sin(angle);
@@ -241,7 +226,7 @@ pub const Mat4 = extern struct {
         return mat.mul(&result);
     }
 
-    pub fn rotateY(mat: *const Mat4, angle: ValueType) Mat4 {
+    pub fn rotateY(mat: *const Mat4, angle: f32) Mat4 {
         var result = Mat4.identity;
         const cs = @cos(angle);
         const s = @sin(angle);
@@ -252,7 +237,7 @@ pub const Mat4 = extern struct {
         return mat.mul(&result);
     }
 
-    pub fn rotateZ(mat: *const Mat4, angle: ValueType) Mat4 {
+    pub fn rotateZ(mat: *const Mat4, angle: f32) Mat4 {
         var result = Mat4.identity;
         const cs = @cos(angle);
         const s = @sin(angle);
@@ -265,9 +250,9 @@ pub const Mat4 = extern struct {
 
     pub fn rotate(
         mat: *const Mat4,
-        angle_x: ValueType,
-        angle_y: ValueType,
-        angle_z: ValueType,
+        angle_x: f32,
+        angle_y: f32,
+        angle_z: f32,
     ) Mat4 {
         const rot_x = Mat4.rotateX(angle_x);
         const rot_y = Mat4.rotateY(angle_y);
@@ -289,7 +274,7 @@ pub const Mat4 = extern struct {
 
     pub fn toMat3(self: *const Mat4) Mat3 {
         return Mat3{
-            .data = [_]Mat3.ValueType{
+            .data = [_]f32{
                 self.data[0], self.data[1], self.data[2], // First row
                 self.data[4], self.data[5], self.data[6], // Second row
                 self.data[8], self.data[9], self.data[10], // Third row
@@ -297,7 +282,7 @@ pub const Mat4 = extern struct {
         };
     }
 
-    pub fn determinant(self: *const Mat4) ValueType {
+    pub fn determinant(self: *const Mat4) f32 {
         const m = self.data;
         return m[0] * (m[5] * (m[10] * m[15] - m[11] * m[14]) -
             m[6] * (m[9] * m[15] - m[11] * m[13]) +
@@ -319,21 +304,25 @@ pub const Mat4 = extern struct {
             return Mat4.identity; // Return identity for near-singular matrices
         }
 
-        const m = self.data;
+        const m = &self.data;
         var result = Mat4.identity;
 
-        result.data[0] =
-            m[5] * (m[10] * m[15] - m[11] * m[14]) -
-            m[6] * (m[9] * m[15] - m[11] * m[13]) +
-            m[7] * (m[9] * m[14] - m[10] * m[13]);
-
-        result.data[1] =
-            -(m[1] * (m[10] * m[15] - m[11] * m[14]) -
-                m[2] * (m[9] * m[15] - m[11] * m[13]) +
-                m[3] * (m[9] * m[14] - m[10] * m[13]));
-
-        // Continue with similar calculations for other elements...
-        // Truncated for brevity, full implementation would complete remaining matrix elements
+        result.data[0] = m[5] * (m[10] * m[15] - m[11] * m[14]) - m[6] * (m[9] * m[15] - m[11] * m[13]) + m[7] * (m[9] * m[14] - m[10] * m[13]);
+        result.data[1] = -(m[1] * (m[10] * m[15] - m[11] * m[14]) - m[2] * (m[9] * m[15] - m[11] * m[13]) + m[3] * (m[9] * m[14] - m[10] * m[13]));
+        result.data[2] = m[1] * (m[6] * m[15] - m[7] * m[14]) - m[2] * (m[5] * m[15] - m[7] * m[13]) + m[3] * (m[5] * m[14] - m[6] * m[13]);
+        result.data[3] = -(m[1] * (m[6] * m[11] - m[7] * m[10]) - m[2] * (m[5] * m[11] - m[7] * m[9]) + m[3] * (m[5] * m[10] - m[6] * m[9]));
+        result.data[4] = -(m[4] * (m[10] * m[15] - m[11] * m[14]) - m[6] * (m[8] * m[15] - m[11] * m[12]) + m[7] * (m[8] * m[14] - m[10] * m[12]));
+        result.data[5] = m[0] * (m[10] * m[15] - m[11] * m[14]) - m[2] * (m[8] * m[15] - m[11] * m[12]) + m[3] * (m[8] * m[14] - m[10] * m[12]);
+        result.data[6] = -(m[0] * (m[6] * m[15] - m[7] * m[14]) - m[2] * (m[4] * m[15] - m[7] * m[12]) + m[3] * (m[4] * m[14] - m[6] * m[12]));
+        result.data[7] = m[0] * (m[6] * m[11] - m[7] * m[10]) - m[2] * (m[4] * m[11] - m[7] * m[8]) + m[3] * (m[4] * m[10] - m[6] * m[8]);
+        result.data[8] = m[4] * (m[9] * m[15] - m[11] * m[13]) - m[5] * (m[8] * m[15] - m[11] * m[12]) + m[7] * (m[8] * m[13] - m[9] * m[12]);
+        result.data[9] = -(m[0] * (m[9] * m[15] - m[11] * m[13]) - m[1] * (m[8] * m[15] - m[11] * m[12]) + m[3] * (m[8] * m[13] - m[9] * m[12]));
+        result.data[10] = m[0] * (m[5] * m[15] - m[7] * m[13]) - m[1] * (m[4] * m[15] - m[7] * m[12]) + m[3] * (m[4] * m[13] - m[5] * m[12]);
+        result.data[11] = -(m[0] * (m[5] * m[11] - m[7] * m[9]) - m[1] * (m[4] * m[11] - m[7] * m[8]) + m[3] * (m[4] * m[9] - m[5] * m[8]));
+        result.data[12] = -(m[4] * (m[9] * m[14] - m[10] * m[13]) - m[5] * (m[8] * m[14] - m[10] * m[12]) + m[6] * (m[8] * m[13] - m[9] * m[12]));
+        result.data[13] = m[0] * (m[9] * m[14] - m[10] * m[13]) - m[1] * (m[8] * m[14] - m[10] * m[12]) + m[2] * (m[8] * m[13] - m[9] * m[12]);
+        result.data[14] = -(m[0] * (m[5] * m[14] - m[6] * m[13]) - m[1] * (m[4] * m[14] - m[6] * m[12]) + m[2] * (m[4] * m[13] - m[5] * m[12]));
+        result.data[15] = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[1] * (m[4] * m[10] - m[6] * m[8]) + m[2] * (m[4] * m[9] - m[5] * m[8]);
 
         const inv_det = 1.0 / det;
         comptime var i = 0;
@@ -345,10 +334,10 @@ pub const Mat4 = extern struct {
     }
 
     pub fn perspective(
-        fov: ValueType,
-        aspect: ValueType,
-        near: ValueType,
-        far: ValueType,
+        fov: f32,
+        aspect: f32,
+        near: f32,
+        far: f32,
     ) Mat4 {
         const f = 1.0 / @tan(fov / 2.0);
         var result = Mat4.identity;
@@ -362,21 +351,21 @@ pub const Mat4 = extern struct {
     }
 
     pub fn ortho(
-        left: ValueType,
-        right: ValueType,
-        bottom: ValueType,
-        top: ValueType,
+        left: f32,
+        right: f32,
+        bottom: f32,
+        top: f32,
     ) Mat4 {
         return orthoWithDepth(left, right, bottom, top, -1, 1);
     }
 
     pub fn orthoWithDepth(
-        left: ValueType,
-        right: ValueType,
-        bottom: ValueType,
-        top: ValueType,
-        near: ValueType,
-        far: ValueType,
+        left: f32,
+        right: f32,
+        bottom: f32,
+        top: f32,
+        near: f32,
+        far: f32,
     ) Mat4 {
         var result = Mat4.identity;
 
@@ -436,19 +425,17 @@ pub const Mat4 = extern struct {
 };
 //
 pub const Mat3 = struct {
-    const ValueType = f32;
-
-    data: [9]ValueType = [_]ValueType{0} ** 9,
+    data: [9]f32 = [_]f32{0} ** 9,
 
     pub const identity = Mat3{
-        .data = [_]ValueType{
+        .data = [_]f32{
             1, 0, 0,
             0, 1, 0,
             0, 0, 1,
         },
     };
 
-    pub fn init(values: [9]ValueType) Mat3 {
+    pub fn init(values: [9]f32) Mat3 {
         return Mat3{ .data = values };
     }
 
@@ -469,7 +456,7 @@ pub const Mat3 = struct {
 
     pub fn toMat4(self: *const Mat3) Mat4 {
         return Mat4{
-            .data = [_]Mat4.ValueType{
+            .data = [_]f32{
                 self.data[0], self.data[1], self.data[2], 0, // First row
                 self.data[3], self.data[4], self.data[5], 0, // Second row
                 self.data[6], self.data[7], self.data[8], 0, // Third row
@@ -493,7 +480,7 @@ pub const Mat3 = struct {
         return result;
     }
 
-    pub fn rotateZ(angle: ValueType) Mat3 {
+    pub fn rotateZ(angle: f32) Mat3 {
         var result = Mat3.identity;
         const cos_val = @cos(angle);
         const sin_val = @sin(angle);
@@ -516,7 +503,7 @@ pub const Mat3 = struct {
         return result;
     }
 
-    pub fn determinant(self: Mat3) ValueType {
+    pub fn determinant(self: Mat3) f32 {
         const m = self.data;
         return m[0] * (m[4] * m[8] - m[5] * m[7]) -
             m[1] * (m[3] * m[8] - m[5] * m[6]) +
@@ -547,17 +534,19 @@ pub const Mat3 = struct {
 };
 
 pub const Vec4 = extern struct {
-    const ValueType = f32;
-
-    x: ValueType = 0.0,
-    y: ValueType = 0.0,
-    z: ValueType = 0.0,
-    w: ValueType = 1.0,
+    x: f32,
+    y: f32,
+    z: f32,
+    w: f32,
 
     const zero = Vec4.fromValue(0);
 
-    pub fn init(x: ValueType, y: ValueType, z: ValueType, w: ValueType) Vec4 {
+    pub fn init(x: f32, y: f32, z: f32, w: f32) Vec4 {
         return Vec4{ .x = x, .y = y, .z = z, .w = w };
+    }
+
+    pub fn format(self: Vec4, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("{d:.3}, {d:.3}, {d:.3}, {d:.3}", .{ self.x, self.y, self.z, self.w });
     }
 
     pub fn fromVec3(v: Vec3) Vec4 {
@@ -575,7 +564,7 @@ pub const Vec4 = extern struct {
         };
     }
 
-    pub fn fromValue(value: ValueType) Vec4 {
+    pub fn fromValue(value: f32) Vec4 {
         return .{
             .x = value,
             .y = value,
@@ -584,7 +573,7 @@ pub const Vec4 = extern struct {
         };
     }
 
-    pub fn mulValue(self: Vec4, value: ValueType) Vec4 {
+    pub fn mulValue(self: Vec4, value: f32) Vec4 {
         return .{
             .x = self.x * value,
             .y = self.y * value,
@@ -593,26 +582,8 @@ pub const Vec4 = extern struct {
         };
     }
 
-    pub fn divValue(self: Vec4, value: ValueType) Vec4 {
+    pub fn divValue(self: Vec4, value: f32) Vec4 {
         return self.mulValue(1.0 / value);
-    }
-
-    pub fn min(a: Vec4, b: Vec4) Vec4 {
-        return .{
-            .x = @min(a.x, b.x),
-            .y = @min(a.y, b.y),
-            .z = @min(a.z, b.z),
-            .w = @min(a.w, b.w),
-        };
-    }
-
-    pub fn max(a: Vec4, b: Vec4) Vec4 {
-        return .{
-            .x = @max(a.x, b.x),
-            .y = @max(a.y, b.y),
-            .z = @max(a.z, b.z),
-            .w = @max(a.w, b.w),
-        };
     }
 
     pub fn add(self: Vec4, other: Vec4) Vec4 {
@@ -651,15 +622,15 @@ pub const Vec4 = extern struct {
         };
     }
 
-    pub fn length(self: Vec4) ValueType {
+    pub fn length(self: Vec4) f32 {
         return std.math.sqrt(self.lengthSquared());
     }
 
-    pub fn lengthSquared(self: Vec4) ValueType {
+    pub fn lengthSquared(self: Vec4) f32 {
         return self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w;
     }
 
-    pub fn dot(self: Vec4, other: Vec4) ValueType {
+    pub fn dot(self: Vec4, other: Vec4) f32 {
         return self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w;
     }
 
@@ -686,10 +657,10 @@ pub const Vec4 = extern struct {
         );
     }
 
-    pub fn random(min_bound: f32, max_bound: f32) Vec4 {
+    pub fn random(min: f32, max: f32) Vec4 {
         return Vec4.init(
-            randomFloat(f32, min_bound, max_bound),
-            randomFloat(f32, min_bound, max_bound),
+            randomFloat(f32, min, max),
+            randomFloat(f32, min, max),
             randomFloat01(f32),
         );
     }
@@ -717,11 +688,10 @@ pub const Vec4 = extern struct {
     /// Returns true if the vector is close to 0 in all dimensions
     pub fn nearZero(self: Vec4) bool {
         const s = std.math.pow(f32, 1, -8);
-        // zig fmt: off
-        return  (@abs(self.x) < s)
-            and (@abs(self.y) < s)
-            and (@abs(self.z) < s
-            and  @abs(self.w) < s);
+        return (@abs(self.x) < s) and
+            (@abs(self.y) < s) and
+            (@abs(self.z) < s and
+                (@abs(self.w) < s));
     }
 
     pub fn reflect(self: Vec4, other: Vec4) Vec4 {
@@ -770,16 +740,18 @@ pub const IVec3 = struct {
 };
 
 pub const Vec3 = extern struct {
-    const ValueType = f32;
-
-    x: ValueType = 0.0,
-    y: ValueType = 0.0,
-    z: ValueType = 0.0,
+    x: f32,
+    y: f32,
+    z: f32,
 
     pub const zero = fromValue(0);
 
-    pub fn init(x: ValueType, y: ValueType, z: ValueType) Vec3 {
+    pub fn init(x: f32, y: f32, z: f32) Vec3 {
         return Vec3{ .x = x, .y = y, .z = z };
+    }
+
+    pub fn format(self: Vec3, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("{d:.3}, {d:.3}, {d:.3}", .{ self.x, self.y, self.z });
     }
 
     pub fn fromVec4(v: Vec4) Vec3 {
@@ -797,7 +769,7 @@ pub const Vec3 = extern struct {
         };
     }
 
-    pub fn fromValue(value: ValueType) Vec3 {
+    pub fn fromValue(value: f32) Vec3 {
         return .{
             .x = value,
             .y = value,
@@ -805,7 +777,7 @@ pub const Vec3 = extern struct {
         };
     }
 
-    pub fn mulValue(self: Vec3, value: ValueType) Vec3 {
+    pub fn mulValue(self: Vec3, value: f32) Vec3 {
         return .{
             .x = self.x * value,
             .y = self.y * value,
@@ -813,29 +785,13 @@ pub const Vec3 = extern struct {
         };
     }
 
-    pub fn divValue(self: Vec3, value: ValueType) Vec3 {
+    pub fn divValue(self: Vec3, value: f32) Vec3 {
         return self.mulValue(1.0 / value);
         // return .{
         //     .x = self.x / value,
         //     .y = self.y / value,
         //     .z = self.z / value,
         // };
-    }
-
-    pub fn min(a: Vec3, b: Vec3) Vec3 {
-        return .{
-            .x = @min(a.x, b.x),
-            .y = @min(a.y, b.y),
-            .z = @min(a.z, b.z),
-        };
-    }
-
-    pub fn max(a: Vec3, b: Vec3) Vec3 {
-        return .{
-            .x = @max(a.x, b.x),
-            .y = @max(a.y, b.y),
-            .z = @max(a.z, b.z),
-        };
     }
 
     pub fn add(self: Vec3, other: Vec3) Vec3 {
@@ -870,6 +826,22 @@ pub const Vec3 = extern struct {
         };
     }
 
+    pub fn min(a: Vec3, b: Vec3) Vec3 {
+        return .{
+            .x = @min(a.x, b.x),
+            .y = @min(a.y, b.y),
+            .z = @min(a.z, b.z),
+        };
+    }
+
+    pub fn max(a: Vec3, b: Vec3) Vec3 {
+        return .{
+            .x = @max(a.x, b.x),
+            .y = @max(a.y, b.y),
+            .z = @max(a.z, b.z),
+        };
+    }
+
     /// returns a vector with each component being positive
     pub fn abs(self: Vec3) Vec3 {
         return .{
@@ -883,15 +855,15 @@ pub const Vec3 = extern struct {
         return a.x == b.x and a.y == b.y and a.z == b.z;
     }
 
-    pub fn length(self: Vec3) ValueType {
+    pub fn length(self: Vec3) f32 {
         return std.math.sqrt(self.lengthSquared());
     }
 
-    pub fn lengthSquared(self: Vec3) ValueType {
+    pub fn lengthSquared(self: Vec3) f32 {
         return self.x * self.x + self.y * self.y + self.z * self.z;
     }
 
-    pub fn dot(self: Vec3, other: Vec3) ValueType {
+    pub fn dot(self: Vec3, other: Vec3) f32 {
         return self.x * other.x + self.y * other.y + self.z * other.z;
     }
 
@@ -934,11 +906,11 @@ pub const Vec3 = extern struct {
         );
     }
 
-    pub fn random(min_bound: f32, max_bound: f32) Vec3 {
+    pub fn random(minimum: f32, maximum: f32) Vec3 {
         return Vec3.init(
-            randomFloat(f32, min_bound, max_bound),
-            randomFloat(f32, min_bound, max_bound),
-            randomFloat(f32, min_bound, max_bound),
+            randomFloat(f32, minimum, maximum),
+            randomFloat(f32, minimum, maximum),
+            randomFloat(f32, minimum, maximum),
         );
     }
 
@@ -955,7 +927,7 @@ pub const Vec3 = extern struct {
     pub fn randomOnHemisphere(normal: Vec3) Vec3 {
         const on_unit_sphere = randomNormalized();
         // In the same hemisphere as the normal
-        if (Vec3.dot(on_unit_sphere, normal.*) > 0.0) {
+        if (Vec3.dot(on_unit_sphere, normal) > 0.0) {
             return on_unit_sphere;
         } else {
             return on_unit_sphere.negate();
@@ -990,15 +962,17 @@ pub const Vec3 = extern struct {
 };
 
 pub const Vec2 = extern struct {
-    const ValueType = f32;
-
     pub const zero = Vec2.init(0.0, 0.0);
 
-    x: ValueType = 0.0,
-    y: ValueType = 0.0,
+    x: f32,
+    y: f32,
 
-    pub fn init(x: ValueType, y: ValueType) Vec2 {
+    pub fn init(x: f32, y: f32) Vec2 {
         return Vec2{ .x = x, .y = y };
+    }
+
+    pub fn format(self: Vec2, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("{d:.3}, {d:.3}", .{ self.x, self.y });
     }
 
     pub fn fromVec4(v: Vec4) Vec2 {
@@ -1015,39 +989,23 @@ pub const Vec2 = extern struct {
         };
     }
 
-    pub fn fromValue(value: ValueType) Vec2 {
+    pub fn fromValue(value: f32) Vec2 {
         return .{
             .x = value,
             .y = value,
         };
     }
 
-
-    pub fn mulValue(self: Vec2, value: ValueType) Vec2 {
+    pub fn mulValue(self: Vec2, value: f32) Vec2 {
         return .{
             .x = self.x * value,
             .y = self.y * value,
         };
     }
 
-    pub fn divValue(self: Vec2, value: ValueType) Vec2 {
+    pub fn divValue(self: Vec2, value: f32) Vec2 {
         return self.mulValue(1.0 / value);
     }
-
-    pub fn min(a: Vec2, b: Vec2) Vec2 {
-        return .{
-            .x = @min(a.x, b.x),
-            .y = @min(a.y, b.y),
-        };
-    }
-
-    pub fn max(a: Vec2, b: Vec2) Vec2 {
-        return .{
-            .x = @max(a.x, b.x),
-            .y = @max(a.y, b.y),
-        };
-    }
-
 
     pub fn add(self: Vec2, other: Vec2) Vec2 {
         return .{
@@ -1077,15 +1035,15 @@ pub const Vec2 = extern struct {
         };
     }
 
-    pub fn length(self: Vec2) ValueType {
+    pub fn length(self: Vec2) f32 {
         return std.math.sqrt(self.lengthSquared());
     }
 
-    pub fn lengthSquared(self: Vec2) ValueType {
+    pub fn lengthSquared(self: Vec2) f32 {
         return self.x * self.x + self.y * self.y;
     }
 
-    pub fn dot(self: Vec2, other: Vec2) ValueType {
+    pub fn dot(self: Vec2, other: Vec2) f32 {
         return self.x * other.x + self.y * other.y;
     }
 
@@ -1116,10 +1074,10 @@ pub const Vec2 = extern struct {
         );
     }
 
-    pub fn random(min_bounds: f32, max_bounds: f32) Vec2 {
+    pub fn random(min: f32, max: f32) Vec2 {
         return Vec2.init(
-            randomFloat(f32, min_bounds, max_bounds),
-            randomFloat(f32, min_bounds, max_bounds),
+            randomFloat(f32, min, max),
+            randomFloat(f32, min, max),
         );
     }
 
@@ -1176,6 +1134,11 @@ pub const Ray = struct {
     origin: Vec3,
     direction: Vec3,
 
+    pub const zero: Ray = .{
+        .origin = .zero,
+        .direction = .zero,
+    };
+
     pub fn init(origin: Vec3, direction: Vec3) Self {
         return .{
             .origin = origin,
@@ -1183,10 +1146,48 @@ pub const Ray = struct {
         };
     }
 
-    pub fn at(self: *const Self, t: f32) Vec3 {
+    pub fn at(self: Self, t: f32) Vec3 {
         // P(t) = A + tB
         const tb = self.direction.mulValue(t);
         return Vec3.add(self.origin, tb);
+    }
+
+    pub fn intersectsWithAabb(self: Ray, aabb: Aabb) bool {
+        return self.getIntersection(aabb) != null;
+    }
+
+    pub fn getIntersection(self: Ray, aabb: Aabb) ?f32 {
+        const t1 = (aabb.min.sub(self.origin)).div(self.direction);
+        const t2 = (aabb.max.sub(self.origin)).div(self.direction);
+
+        const tmin = Vec3.min(t1, t2);
+        const tmax = Vec3.max(t1, t2);
+
+        const tnear = @max(@max(tmin.x, tmin.y), tmin.z);
+        const tfar = @min(@min(tmax.x, tmax.y), tmax.z);
+
+        const hit = (tfar >= tnear) and (tfar > 0.0);
+        if (!hit) {
+            return null;
+        }
+        return tnear;
+    }
+};
+
+pub const Aabb = extern struct {
+    min: Vec3,
+    max: Vec3,
+
+    pub const zero: Aabb = .{
+        .min = .zero,
+        .max = .zero,
+    };
+
+    pub fn transform(self: Aabb, pos: Vec3) Transform {
+        return .{
+            .position = pos,
+            .scale = self.max.sub(self.min),
+        };
     }
 };
 
@@ -1494,17 +1495,13 @@ test "Mat3 inverse" {
     try expect(std.mem.eql(f32, &inv.data, &id.data));
 }
 test "Test mulVec4 function with new Mat4 definition" {
-    // TODO:
-
     const v = Vec4.init(2, 5, 1, 8);
-    const mat = Mat4{
-        .data = [_]Mat4.ValueType{
-            1, 0, 2, 0,
-            0, 3, 0, 4,
-            0, 0, 5, 0,
-            6, 0, 0, 7,
-        }
-    };
+    const mat = Mat4{ .data = [_]Mat4.f32{
+        1, 0, 2, 0,
+        0, 3, 0, 4,
+        0, 0, 5, 0,
+        6, 0, 0, 7,
+    } };
 
     const m = mat.mulVec4(v);
     const expected = Vec4.init(4, 47, 5, 68);
@@ -1513,7 +1510,7 @@ test "Test mulVec4 function with new Mat4 definition" {
     // const vec = Vec4.init(1.0, 2.0, 3.0, 4.0);
     //
     // const mat = Mat4{
-    //     .data = [_]Mat4.ValueType{
+    //     .data = [_]Mat4.f32{
     //         1.0, 5.0, 9.0, 13.0,
     //         2.0, 6.0, 10.0, 14.0,
     //         3.0, 7.0, 11.0, 15.0,
@@ -1534,4 +1531,3 @@ test "Test mulVec4 function with new Mat4 definition" {
     //
     // try expectEqual(result,  expected);
 }
-

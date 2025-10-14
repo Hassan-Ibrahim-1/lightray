@@ -1,4 +1,6 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+
 const engine = @import("engine.zig");
 const ig = engine.ig_raw;
 const math = engine.math;
@@ -10,21 +12,24 @@ const Material = engine.Material;
 const RenderItem = engine.RenderItem;
 const Transform = engine.Transform;
 const Actor = engine.Actor;
-const Allocator = std.mem.Allocator;
 const PointLight = engine.PointLight;
 const SpotLight = engine.SpotLight;
 const DirLight = engine.DirLight;
-
 pub const ImGuiIO_t = ig.ImGuiIO_t;
+const glfw = engine.glfw;
+const ig_backend = engine.ig_backend;
+
+const log = engine.debug.log.scoped(.imgui);
 
 const State = struct {
-    allocator: Allocator,
+    fixed_buffer: [1024]u8,
+    fba: std.heap.FixedBufferAllocator,
 };
 
 var state: State = undefined;
 
-pub fn init(allocator: Allocator) void {
-    state.allocator = allocator;
+pub fn init() void {
+    state.fba = .init(&state.fixed_buffer);
 }
 
 pub fn begin(name: [:0]const u8) void {
@@ -346,69 +351,57 @@ pub fn color4(name: [:0]const u8, c: *Color) bool {
 
 /// only bases the return value on position
 pub fn transform(name: [:0]const u8, tf: *Transform) bool {
-    var n1 = std.mem.concatWithSentinel(
-        state.allocator,
-        u8,
-        &.{ name, " position" },
-        0,
-    ) catch unreachable;
+    const alloc = state.fba.allocator();
+    defer state.fba.reset();
+
+    var n1 = std.mem.concatWithSentinel(alloc, u8, &.{ name, " position" }, 0) catch unreachable;
     const res = dragVec3Ex(n1, &tf.position, 0.1, null, null);
-    state.allocator.free(n1);
 
-    n1 = std.mem.concatWithSentinel(
-        state.allocator,
-        u8,
-        &.{ name, " scale" },
-        0,
-    ) catch unreachable;
+    n1 = std.mem.concatWithSentinel(alloc, u8, &.{ name, " scale" }, 0) catch unreachable;
     _ = dragVec3Ex(n1, &tf.scale, 0.1, null, null);
-    state.allocator.free(n1);
 
-    n1 = std.mem.concatWithSentinel(
-        state.allocator,
-        u8,
-        &.{ name, " rotation" },
-        0,
-    ) catch unreachable;
+    n1 = std.mem.concatWithSentinel(alloc, u8, &.{ name, " rotation" }, 0) catch unreachable;
     _ = dragVec3Ex(n1, &tf.rotation, 0.1, null, null);
-    state.allocator.free(n1);
 
     return res;
 }
 
 /// return value is based on whether color changed
 pub fn material(name: [:0]const u8, mat: *Material) bool {
+    const alloc = state.fba.allocator();
+    defer state.fba.reset();
+
     var n1 = std.mem.concatWithSentinel(
-        state.allocator,
+        alloc,
         u8,
         &.{ name, " color" },
         0,
     ) catch unreachable;
     const res = color3(n1, &mat.color);
-    state.allocator.free(n1);
 
     n1 = std.mem.concatWithSentinel(
-        state.allocator,
+        alloc,
         u8,
         &.{ name, " shininess" },
         0,
     ) catch unreachable;
     _ = dragFloat(n1, &mat.shininess);
-    state.allocator.free(n1);
 
     return res;
 }
 
 pub fn renderItem(name: [:0]const u8, ri: *RenderItem) bool {
+    const alloc = state.fba.allocator();
+    defer state.fba.reset();
+
     const res = material(name, &ri.material);
     const n1 = std.mem.concatWithSentinel(
-        state.allocator,
+        alloc,
         u8,
         &.{ name, " hidden" },
         0,
     ) catch unreachable;
     _ = checkBox(n1, &ri.hidden);
-    state.allocator.free(n1);
 
     return res;
 }
@@ -431,33 +424,21 @@ fn lightColor(
     diffuse: *Color,
     specular: *Color,
 ) void {
+    const alloc = state.fba.allocator();
+    defer state.fba.reset();
+
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
-            "{s} ambient",
-            .{name},
-        ) catch unreachable;
-        defer state.allocator.free(n1);
+        const n1 = std.fmt.allocPrintSentinel(alloc, "{s} ambient", .{name}, 0) catch unreachable;
         _ = color3(n1, ambient);
     }
 
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
-            "{s} diffuse",
-            .{name},
-        ) catch unreachable;
-        defer state.allocator.free(n1);
+        const n1 = std.fmt.allocPrintSentinel(alloc, "{s} diffuse", .{name}, 0) catch unreachable;
         _ = color3(n1, diffuse);
     }
 
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
-            "{s} specular",
-            .{name},
-        ) catch unreachable;
-        defer state.allocator.free(n1);
+        const n1 = std.fmt.allocPrintSentinel(alloc, "{s} specular", .{name}, 0) catch unreachable;
         _ = color3(n1, specular);
     }
 }
@@ -466,14 +447,17 @@ pub fn pointLight(
     name: [:0]const u8,
     light: *PointLight,
 ) bool {
+    const alloc = state.fba.allocator();
+    defer state.fba.reset();
+
     var res = false;
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} pos",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         res = dragVec3Ex(n1, &light.position, 0.1, null, null);
     }
     lightColor(
@@ -483,12 +467,12 @@ pub fn pointLight(
         &light.specular,
     );
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} hidden",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         _ = checkBox(n1, &light.hidden);
     }
 
@@ -497,23 +481,26 @@ pub fn pointLight(
 }
 
 pub fn dirLight(name: [:0]const u8, light: *DirLight) bool {
+    const alloc = state.fba.allocator();
+    defer state.fba.reset();
+
     var res = false;
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} pos",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         res = dragVec3Ex(n1, &light.position, 0.1, null, null);
     }
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} dir",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         _ = dragVec3Ex(n1, &light.direction, 0.1, null, null);
     }
     lightColor(
@@ -523,12 +510,12 @@ pub fn dirLight(name: [:0]const u8, light: *DirLight) bool {
         &light.specular,
     );
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} hidden",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         _ = checkBox(n1, &light.hidden);
     }
 
@@ -540,41 +527,44 @@ pub fn spotLight(
     name: [:0]const u8,
     light: *SpotLight,
 ) bool {
+    const alloc = state.fba.allocator();
+    defer state.fba.reset();
+
     var res = false;
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} pos",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         res = dragVec3Ex(n1, &light.position, 0.1, null, null);
     }
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} dir",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         _ = dragVec3Ex(n1, &light.direction, 0.1, null, null);
     }
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} inner cutoff",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         _ = dragFloatEx(n1, &light.inner_cutoff, 0.1, null, null);
     }
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} outer cutoff",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         _ = dragFloatEx(n1, &light.outer_cutoff, 0.1, null, null);
     }
     lightColor(
@@ -584,12 +574,12 @@ pub fn spotLight(
         &light.specular,
     );
     {
-        const n1 = std.fmt.allocPrintZ(
-            state.allocator,
+        const n1 = std.fmt.allocPrintSentinel(
+            alloc,
             "{s} hidden",
             .{name},
+            0,
         ) catch unreachable;
-        defer state.allocator.free(n1);
         _ = checkBox(n1, &light.hidden);
     }
 
@@ -599,6 +589,13 @@ pub fn spotLight(
 
 pub fn text(str: [:0]const u8) void {
     ig.igText(str);
+}
+
+pub fn print(comptime fmt: []const u8, args: anytype) void {
+    const alloc = state.fba.allocator();
+    const str = std.fmt.allocPrintSentinel(alloc, fmt, args, 0) catch unreachable;
+    defer state.fba.reset();
+    text(str);
 }
 
 pub fn fpsCounter() void {
@@ -708,8 +705,6 @@ pub fn setMaterialYouTheme() void {
     style.*.AntiAliasedFill = true;
 }
 
-const glfw = engine.glfw;
-const ig_backend = engine.ig_backend;
 pub fn setMouseScrollCallback(
     win: ?*glfw.GLFWwindow,
     xoffset: f64,
@@ -778,12 +773,12 @@ pub fn drawCommand(name: []const u8, dc: *engine.DrawCommand) void {
 
     const alloc = engine.frameAllocator();
 
-    var n = std.fmt.allocPrintZ(alloc, "{s} mode", .{name}) catch unreachable;
+    var n = std.fmt.allocPrintZ(alloc, "{s} mode", .{name}, 0) catch unreachable;
     var selected: i32 = @intFromEnum(dc.mode);
     _ = combo(n, &selected, mode_combo);
     dc.mode = @enumFromInt(selected);
 
-    n = std.fmt.allocPrintZ(alloc, "{s} type", .{name}) catch unreachable;
+    n = std.fmt.allocPrintZ(alloc, "{s} type", .{name}, 0) catch unreachable;
     selected = @intFromEnum(dc.type);
     _ = combo(n, &selected, type_combo);
     dc.type = @enumFromInt(selected);

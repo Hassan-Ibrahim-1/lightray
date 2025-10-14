@@ -1,6 +1,6 @@
 const std = @import("std");
 const gl = @import("gl");
-const engine = @import("engine.zig");
+const engine = @import("../engine.zig");
 const math = engine.math;
 const assert = engine.debug.assert;
 const log = engine.debug.log;
@@ -8,10 +8,12 @@ const Size = engine.utils.Size;
 const Vec2 = math.Vec2;
 const Vec3 = math.Vec3;
 const ArrayList = std.ArrayList;
-const Vertex = @import("vertex.zig").Vertex;
+const Vertex = engine.Vertex;
 const Allocator = std.mem.Allocator;
 
 const ComputeTexture = @This();
+
+pub const Handle = usize;
 
 handle: c_uint,
 width: u32,
@@ -57,8 +59,6 @@ pub fn init(
     gl.TextureParameteri(texture.handle, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.TextureParameteri(texture.handle, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
-    engine.debug.checkGlError();
-
     gl.TextureStorage2D(
         texture.handle,
         1,
@@ -67,11 +67,7 @@ pub fn init(
         @intCast(texture.height),
     );
 
-    engine.debug.checkGlError();
-
     gl.BindImageTexture(0, texture.handle, 0, gl.FALSE, 0, gl.WRITE_ONLY, format);
-
-    engine.debug.checkGlError();
 
     texture._loaded = true;
     return texture;

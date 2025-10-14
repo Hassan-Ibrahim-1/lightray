@@ -1,22 +1,15 @@
 .{
     .name = .engine,
-
     .version = "0.0.0",
-
-    .minimum_zig_version = "0.14.0",
-
+    .minimum_zig_version = "0.15.1",
     .dependencies = .{
-        .zigglgen = .{
-            .url = "git+https://github.com/castholm/zigglgen#1c901bef6d312ef1814b8fce3c5a9e9e8e61ac2d",
-            .hash = "12209d8a018832bee15d9da29a12fa753d89b56cd843cdf1f39501546c6467e38ba1",
-        },
-        .mach_freetype = .{
-            .url = "https://pkg.machengine.org/mach-freetype/d63efa5534c17f3a12ed3d327e0ad42a64adc20a.tar.gz",
-            .hash = "1220adfccce3dbc4e4fa8650fdaec110a676f6b8a1462ed6ef422815207f8288e9d2",
-        },
         .cimgui = .{
             .url = "git+https://github.com/Hassan-Ibrahim-1/dcimgui#6f03c1f762e7673578dcf996c7cc9be8a1cf728a",
             .hash = "cimgui-0.1.0-44ClkRyEWwDZcvCm0VpzjJU4jbLM0T2LB5Uedm5i1bM4",
+        },
+        .zigglgen = .{
+            .url = "git+https://github.com/Hassan-Ibrahim-1/zigglgen.git#1af274e8bea000123f24abfb25ecd007199c337a",
+            .hash = "zigglgen-0.4.0-bmyqLcKULwA6o8EBZC1RezJNYg1oWvCv_T3H8F-XVjvd",
         },
     },
     .paths = .{
@@ -24,5 +17,5 @@
         "build.zig.zon",
         "src",
     },
-    .fingerprint = 0xe8a81a8d956115bc,
+    .fingerprint = 0xe8a81a8db355ea88,
 }

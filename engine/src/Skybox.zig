@@ -81,3 +81,13 @@ fn deleteTextures(self: *Skybox) void {
 pub fn loaded(self: *const Skybox) bool {
     return self._loaded;
 }
+
+const cast = engine.cast;
+
+pub fn bindSlot(
+    self: *const Skybox,
+    slot: usize,
+) void {
+    gl.ActiveTexture(gl.TEXTURE0 + cast.as(c_uint, slot));
+    gl.BindTexture(gl.TEXTURE_CUBE_MAP, self.handle);
+}

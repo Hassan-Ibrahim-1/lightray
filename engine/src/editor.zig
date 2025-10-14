@@ -1,11 +1,10 @@
 const std = @import("std");
-const engine = @import("../engine.zig");
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
+
+const engine = @import("engine.zig");
 const debug = engine.debug;
 const log = debug.log;
-const Vec3 = math.Vec3;
-const Vec2 = math.Vec2;
-const Vec4 = math.Vec4;
-const Mat4 = math.Mat4;
 const fs = engine.fs;
 const Transform = engine.Transform;
 const Camera = engine.Camera;
@@ -19,42 +18,50 @@ const Actor = engine.Actor;
 const Model = engine.Model;
 const ig = engine.ig;
 const math = engine.math;
-const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
 const RenderItem = engine.RenderItem;
 const Material = engine.Material;
 const Scene = engine.Scene;
 const PointLight = engine.PointLight;
 const SpotLight = engine.SpotLight;
 const DirLight = engine.DirLight;
+const Vec3 = math.Vec3;
+const Vec2 = math.Vec2;
+const Vec4 = math.Vec4;
+const Mat4 = math.Mat4;
 
 const State = struct {
     scene: *Scene = undefined,
-    allocator: Allocator = undefined,
-    actor_buf: [512]u8 = undefined,
-    light_buf: [512]u8 = undefined,
+    alloc: Allocator = undefined,
+    rp: *engine.res.ResourcePool = undefined,
+    actor_buf: [512]u8 = @splat(0),
+    light_buf: [512]u8 = @splat(0),
     adding_actor: bool = false,
     adding_light: bool = false,
     show_windows: bool = false,
+
+    fixed_buffer: [1024]u8 = undefined,
+    fba: std.heap.FixedBufferAllocator = undefined,
 };
 var state = State{};
 
-pub fn init() void {
+pub fn init(alloc: Allocator, rp: *engine.res.ResourcePool) void {
     state.scene = engine.scene();
-    state.allocator = engine.allocator();
+    state.alloc = alloc;
+    state.fba = .init(&state.fixed_buffer);
+    state.rp = rp;
 }
 
-pub fn update() void {
+pub fn update() Allocator.Error!void {
     if (engine.input.keyPressed(.m)) {
         state.show_windows = !state.show_windows;
     }
     if (engine.cursorEnabled() and state.show_windows) {
-        createActorListWindow();
-        createLightListWindow();
+        try createActorListWindow();
+        try createLightListWindow();
     }
 }
 
-fn createActorListWindow() void {
+fn createActorListWindow() Allocator.Error!void {
     _ = ig.begin("Actors");
     defer ig.end();
 
@@ -66,34 +73,37 @@ fn createActorListWindow() void {
     }
 
     if (state.adding_actor) {
-        createAddActorWindow(&state.actor_buf);
+        const len = std.mem.indexOfScalar(u8, &state.actor_buf, 0) orelse
+            state.actor_buf.len;
+        try createAddActorWindow(state.actor_buf[0..len]);
     }
 
+    const fixed_alloc = state.fba.allocator();
     var iter = state.scene.actors.iterator();
     while (iter.next()) |actor| {
-        const name = std.fmt.allocPrintZ(
-            state.allocator,
-            "{s}",
-            .{actor.key_ptr.*},
-        ) catch unreachable;
-        defer state.allocator.free(name);
-        _ = ig.actor(name, actor.value_ptr.*);
+        defer state.fba.reset();
+        const name = try std.fmt.allocPrintSentinel(fixed_alloc, "{s}", .{actor.key_ptr.*}, 0);
+        _ = ig.actor(name, actor.value_ptr);
     }
 }
 
 var add_actor_selected_item: i32 = 0;
-fn createAddActorWindow(name: []const u8) void {
-    const win_name = std.fmt.allocPrintZ(
-        state.allocator,
+fn createAddActorWindow(name: []const u8) Allocator.Error!void {
+    const fixed_alloc = state.fba.allocator();
+    defer state.fba.reset();
+
+    const win_name = try std.fmt.allocPrintSentinel(
+        fixed_alloc,
         "Actor - {s}",
         .{name},
-    ) catch unreachable;
-    defer state.allocator.free(win_name);
+        0,
+    );
+
+    defer fixed_alloc.free(win_name);
     _ = ig.begin(win_name);
     defer ig.end();
 
-    const Size = ig.Size;
-    ig.setWindowSize(Size.init(222, 83));
+    ig.setWindowSize(.init(222, 83));
 
     const items: [:0]const u8 =
         "Cube\x00";
@@ -112,9 +122,9 @@ fn createAddActorWindow(name: []const u8) void {
             // use an enum when adding new stuff
             0 => {
                 // remove null term
-                const len = std.mem.indexOfScalar(u8, name, 0).?;
-                const actor = state.scene.createActor(name[0..len]);
-                actor.render_item.loadModelData(renderer.cubeModel());
+                const actor = state.scene.createActor(name);
+                const shapes = renderer.shapes();
+                try actor.render_item.addMesh(shapes.cube);
             },
             else => {
                 log.err(
@@ -127,7 +137,7 @@ fn createAddActorWindow(name: []const u8) void {
     }
 }
 
-fn createLightListWindow() void {
+fn createLightListWindow() Allocator.Error!void {
     _ = ig.begin("Lights");
     defer ig.end();
 
@@ -137,57 +147,48 @@ fn createLightListWindow() void {
     }
 
     if (state.adding_light) {
-        createAddLightWindow(&state.light_buf);
+        try createAddLightWindow(&state.light_buf);
     }
+
+    const fixed_alloc = state.fba.allocator();
 
     {
         var iter = state.scene.point_lights.iterator();
         while (iter.next()) |light| {
-            const name = std.fmt.allocPrintZ(
-                state.allocator,
-                "{s}",
-                .{light.key_ptr.*},
-            ) catch unreachable;
-            defer state.allocator.free(name);
-            _ = ig.pointLight(name, light.value_ptr.*);
+            defer state.fba.reset();
+            const name = try std.fmt.allocPrintSentinel(fixed_alloc, "{s}", .{light.key_ptr.*}, 0);
+            _ = ig.pointLight(name, light.value_ptr);
         }
     }
 
     {
         var iter = state.scene.spot_lights.iterator();
         while (iter.next()) |light| {
-            const name = std.fmt.allocPrintZ(
-                state.allocator,
-                "{s}",
-                .{light.key_ptr.*},
-            ) catch unreachable;
-            defer state.allocator.free(name);
-            _ = ig.spotLight(name, light.value_ptr.*);
+            defer state.fba.reset();
+            const name = try std.fmt.allocPrintSentinel(fixed_alloc, "{s}", .{light.key_ptr.*}, 0);
+            _ = ig.spotLight(name, light.value_ptr);
         }
     }
 
     {
         var iter = state.scene.dir_lights.iterator();
         while (iter.next()) |light| {
-            const name = std.fmt.allocPrintZ(
-                state.allocator,
-                "{s}",
-                .{light.key_ptr.*},
-            ) catch unreachable;
-            defer state.allocator.free(name);
-            _ = ig.dirLight(name, light.value_ptr.*);
+            defer state.fba.reset();
+            const name = try std.fmt.allocPrintSentinel(fixed_alloc, "{s}", .{light.key_ptr.*}, 0);
+            _ = ig.dirLight(name, light.value_ptr);
         }
     }
 }
 
 var add_light_selected_item: i32 = 0;
-fn createAddLightWindow(name: []const u8) void {
-    const win_name = std.fmt.allocPrintZ(
-        state.allocator,
+fn createAddLightWindow(name: []const u8) Allocator.Error!void {
+    const win_name = try std.fmt.allocPrintSentinel(
+        state.alloc,
         "Light - {s}",
         .{name},
-    ) catch unreachable;
-    defer state.allocator.free(win_name);
+        0,
+    );
+    defer state.alloc.free(win_name);
     _ = ig.begin(win_name);
     defer ig.end();
 
@@ -236,25 +237,17 @@ fn createAddLightWindow(name: []const u8) void {
     }
 }
 
-pub fn loadLightData(path: []const u8) FileLoadError!void {
-    const f = std.fs.cwd().openFile(path, .{}) catch |err| {
-        log.info(
-            "Failed to open file: {s}\nerr: {s}",
-            .{ path, @errorName(err) },
-        );
-        return error.FileNotFound;
-    };
-    defer f.close();
-
-    const src = f.readToEndAlloc(
-        state.allocator,
+pub fn loadLightData(path: []const u8) !void {
+    const src = try std.fs.cwd().readFileAlloc(
+        state.alloc,
+        path,
         std.math.maxInt(usize),
-    ) catch unreachable;
-    defer state.allocator.free(src);
+    );
+    defer state.alloc.free(src);
 
     const parsed = std.json.parseFromSlice(
         []JsonLight,
-        state.allocator,
+        state.alloc,
         src,
         .{},
     ) catch |err| {
@@ -274,7 +267,7 @@ pub fn loadLightData(path: []const u8) FileLoadError!void {
     for (lights) |parsed_light| {
         switch (parsed_light) {
             .point => |*point| {
-                if (state.scene.point_lights.get(point.name)) |light| {
+                if (state.scene.point_lights.getPtr(point.name)) |light| {
                     light.* = point.light;
                 } else {
                     const light = state.scene.createPointLight(point.name);
@@ -282,7 +275,7 @@ pub fn loadLightData(path: []const u8) FileLoadError!void {
                 }
             },
             .spot => |*spot| {
-                if (state.scene.spot_lights.get(spot.name)) |light| {
+                if (state.scene.spot_lights.getPtr(spot.name)) |light| {
                     light.* = spot.light;
                 } else {
                     const light = state.scene.createSpotLight(spot.name);
@@ -290,7 +283,7 @@ pub fn loadLightData(path: []const u8) FileLoadError!void {
                 }
             },
             .dir => |*dir| {
-                if (state.scene.dir_lights.get(dir.name)) |light| {
+                if (state.scene.dir_lights.getPtr(dir.name)) |light| {
                     light.* = dir.light;
                 } else {
                     const light = state.scene.createDirLight(dir.name);
@@ -306,21 +299,22 @@ const FileLoadError = error{
     EmptyFile,
 } || std.json.ParseError(std.json.Scanner);
 
-pub fn loadActorData(path: []const u8) FileLoadError!void {
-    const f = std.fs.cwd().openFile(path, .{}) catch |err| {
-        log.info(
-            "Failed to open file: {s}\nerr: {s}",
-            .{ path, @errorName(err) },
-        );
-        return error.FileNotFound;
+fn createFile(path: []const u8, mode: std.fs.File.OpenMode) std.fs.File.OpenError!std.fs.File {
+    return std.fs.cwd().openFile(path, .{
+        .mode = mode,
+    }) catch |err| switch (err) {
+        error.FileNotFound => std.fs.cwd().createFile(path, .{}),
+        else => err,
     };
-    defer f.close();
+}
 
-    const src = f.readToEndAlloc(
-        state.allocator,
+pub fn loadActorData(path: []const u8) !void {
+    const src = try std.fs.cwd().readFileAlloc(
+        state.alloc,
+        path,
         std.math.maxInt(usize),
-    ) catch unreachable;
-    defer state.allocator.free(src);
+    );
+    defer state.alloc.free(src);
 
     // these structs are just placeholders to represent values
     // that are actually going to be stored in the json file
@@ -354,7 +348,7 @@ pub fn loadActorData(path: []const u8) FileLoadError!void {
 
     const parsed = std.json.parseFromSlice(
         []ParsedActor,
-        state.allocator,
+        state.alloc,
         src,
         .{},
     ) catch |err| {
@@ -371,8 +365,9 @@ pub fn loadActorData(path: []const u8) FileLoadError!void {
     defer parsed.deinit();
 
     const actors = parsed.value;
+    const shapes = renderer.shapes();
     for (actors) |parsed_actor| {
-        if (state.scene.actors.get(parsed_actor.name)) |actor| {
+        if (state.scene.actors.getPtr(parsed_actor.name)) |actor| {
             parsed_actor.copyToActor(actor);
         } else {
             const actor = state.scene.createActor(parsed_actor.name);
@@ -381,32 +376,39 @@ pub fn loadActorData(path: []const u8) FileLoadError!void {
             // Temporary hack to load stuff
             // currently only supports cubes so thats all that this will
             // load. there should be something like model path added later
-            actor.render_item.loadModelData(renderer.cubeModel());
+            try actor.render_item.addMesh(shapes.cube);
         }
     }
 }
 
 /// creates the file if it doesn't already exist
 /// if it does exist it overwrites it
-pub fn saveActorData(path: []const u8) void {
-    const f = std.fs.cwd().createFile(path, .{}) catch unreachable;
+pub fn saveActorData(path: []const u8) SaveError!void {
+    const f = try createFile(path, .write_only);
     defer f.close();
-    const writer = f.writer();
 
+    var buf: [64]u8 = undefined;
+    var file_writer = f.writer(&buf);
+    const writer = &file_writer.interface;
+
+    // FIXME:
     // this is horribly inefficient
     // creating an allocated ArrayList of actors just to copy stuff
-    var actors = ArrayList(*Actor).init(state.allocator);
-    defer actors.deinit();
+    // for json
+    var actors = ArrayList(*Actor).empty;
+    defer actors.deinit(state.alloc);
     var iter = state.scene.actors.valueIterator();
     while (iter.next()) |actor| {
-        actors.append(actor.*) catch unreachable;
+        try actors.append(state.alloc, actor);
     }
 
-    std.json.stringify(
+    try std.json.Stringify.value(
         actors.items,
         .{ .whitespace = .indent_4 },
         writer,
-    ) catch unreachable;
+    );
+
+    try writer.flush();
 }
 
 const JsonLight = union(enum) {
@@ -424,31 +426,36 @@ const JsonLight = union(enum) {
     },
 };
 
+pub const SaveError = Allocator.Error || std.fs.File.OpenError || std.json.Stringify.Error;
+
 /// creates the file if it doesn't already exist
 /// if it does exist it overwrites it
-pub fn saveLightData(path: []const u8) void {
-    const f = std.fs.cwd().createFile(path, .{}) catch unreachable;
+pub fn saveLightData(path: []const u8) SaveError!void {
+    const f = try createFile(path, .write_only);
     defer f.close();
-    const writer = f.writer();
+
+    var buf: [64]u8 = undefined;
+    var file_writer = f.writer(&buf);
+    const writer = &file_writer.interface;
 
     // this is horribly inefficient
     // creating an allocated ArrayList of lights just to copy stuff
 
-    var lights = ArrayList(JsonLight).init(state.allocator);
-    defer lights.deinit();
+    var lights = ArrayList(JsonLight).empty;
+    defer lights.deinit(state.alloc);
 
     // point lights
     {
         var iter = state.scene.point_lights.iterator();
         while (iter.next()) |kv| {
-            const light = kv.value_ptr.*;
+            const light = kv.value_ptr;
             const name = kv.key_ptr.*;
-            lights.append(.{
+            try lights.append(state.alloc, .{
                 .point = .{
                     .name = name,
                     .light = light.*,
                 },
-            }) catch unreachable;
+            });
         }
     }
 
@@ -456,14 +463,14 @@ pub fn saveLightData(path: []const u8) void {
     {
         var iter = state.scene.spot_lights.iterator();
         while (iter.next()) |kv| {
-            const light = kv.value_ptr.*;
+            const light = kv.value_ptr;
             const name = kv.key_ptr.*;
-            lights.append(.{
+            try lights.append(state.alloc, .{
                 .spot = .{
                     .name = name,
                     .light = light.*,
                 },
-            }) catch unreachable;
+            });
         }
     }
 
@@ -471,20 +478,22 @@ pub fn saveLightData(path: []const u8) void {
     {
         var iter = state.scene.dir_lights.iterator();
         while (iter.next()) |kv| {
-            const light = kv.value_ptr.*;
+            const light = kv.value_ptr;
             const name = kv.key_ptr.*;
-            lights.append(.{
+            try lights.append(state.alloc, .{
                 .dir = .{
                     .name = name,
                     .light = light.*,
                 },
-            }) catch unreachable;
+            });
         }
     }
 
-    std.json.stringify(
+    try std.json.Stringify.value(
         lights.items,
         .{ .whitespace = .indent_4 },
         writer,
-    ) catch unreachable;
+    );
+
+    try writer.flush();
 }

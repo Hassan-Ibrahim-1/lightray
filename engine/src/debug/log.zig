@@ -6,9 +6,8 @@ fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const stderr = std.io.getStdErr().writer();
-    var bw = std.io.bufferedWriter(stderr);
-    const writer = bw.writer();
+    var buffer: [64]u8 = undefined;
+    const stderr = std.debug.lockStderrWriter(&buffer);
 
     const yellow = "\x1b[33m";
     const reset = "\x1b[0m";
@@ -25,8 +24,8 @@ fn log(
     const scope_prefix =
         if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
 
-    writer.print(prefix ++ scope_prefix ++ format ++ "\n", args) catch return;
-    bw.flush() catch return;
+    stderr.print(prefix ++ scope_prefix ++ format ++ "\n", args) catch return;
+    stderr.flush() catch return;
 }
 
 pub fn info(

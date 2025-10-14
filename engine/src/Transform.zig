@@ -34,9 +34,21 @@ pub fn init(
 pub fn mat4(self: *const Transform) Mat4 {
     var mat = Mat4.identity;
     mat = mat.translate(self.position);
-    mat = mat.rotateX(math.toRadians(self.rotation.x));
     mat = mat.rotateY(math.toRadians(self.rotation.y));
+    mat = mat.rotateX(math.toRadians(self.rotation.x));
     mat = mat.rotateZ(math.toRadians(self.rotation.z));
     mat = mat.scale(self.scale);
     return mat;
+}
+
+pub fn format(self: *const Transform, w: *std.Io.Writer) std.Io.Writer.Error!void {
+    const spaces = "    ";
+    try w.print(".{{\n{s}position: {f}\n{s}scale: {f}\n{s}rotation: {f}\n}}", .{
+        spaces,
+        self.position,
+        spaces,
+        self.scale,
+        spaces,
+        self.rotation,
+    });
 }

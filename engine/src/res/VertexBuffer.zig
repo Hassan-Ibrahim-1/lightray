@@ -1,64 +1,53 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
+
 const gl = @import("gl");
-const engine = @import("engine.zig");
+
+const engine = @import("../engine.zig");
 const math = engine.math;
 const log = engine.debug.log;
-const Vec2 = math.Vec2;
-const Vec3 = math.Vec3;
-const ArrayList = std.ArrayList;
 const Vertex = engine.Vertex;
-const Allocator = std.mem.Allocator;
 const assert = engine.debug.assert;
+const res = engine.res;
 
-const VertexBuffer = @This();
+alloc: Allocator,
 
-allocator: Allocator,
 vao: ?c_uint,
 vbo: ?c_uint,
 ebo: ?c_uint,
+
 vertices: ArrayList(Vertex),
 indices: ArrayList(u32),
 
+const VertexBuffer = @This();
+
+pub const Handle = usize;
+
 pub fn init(allocator: Allocator) VertexBuffer {
     return VertexBuffer{
-        .allocator = allocator,
+        .alloc = allocator,
+
         .vao = null,
         .vbo = null,
         .ebo = null,
-        .vertices = ArrayList(Vertex).init(allocator),
-        .indices = ArrayList(u32).init(allocator),
-    };
-}
 
-pub fn fromVao(allocator: Allocator, vao: c_uint) VertexBuffer {
-    return VertexBuffer{
-        .allocator = allocator,
-        .vao = vao,
-        .vbo = null,
-        .ebo = null,
-        .vertices = ArrayList(Vertex).init(allocator),
-        .indices = ArrayList(u32).init(allocator),
+        .vertices = .empty,
+        .indices = .empty,
     };
 }
 
 pub fn deinit(self: *VertexBuffer) void {
-    self.vertices.deinit();
-    self.indices.deinit();
-    gl.DeleteVertexArrays(1, @ptrCast(&self.vao));
+    self.vertices.deinit(self.alloc);
+    self.indices.deinit(self.alloc);
+    gl.DeleteVertexArrays(1, @ptrCast(&self.vao.?));
     if (self.vbo) |*vbo| {
         gl.DeleteBuffers(1, @ptrCast(vbo));
     }
     if (self.ebo) |*ebo| {
         gl.DeleteBuffers(1, @ptrCast(ebo));
     }
-}
-
-// only clones cpu memory. call the send* functions to clone gpu memory
-pub fn clone(self: *const VertexBuffer) Allocator.Error!VertexBuffer {
-    var new = VertexBuffer.init(self.allocator);
-    new.vertices = try self.vertices.clone();
-    new.indices = try self.indices.clone();
-    return new;
+    self.* = undefined;
 }
 
 pub fn setVao(self: *VertexBuffer, vao: c_uint) void {
@@ -70,11 +59,18 @@ pub fn setVao(self: *VertexBuffer, vao: c_uint) void {
 pub fn bind(self: *const VertexBuffer) void {
     assert(self.vao != null, "Vao is null", .{});
     gl.BindVertexArray(self.vao.?);
+    if (self.ebo) |ebo| {
+        gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+    }
 }
 
-pub fn unbind(self: *const VertexBuffer) void {
-    _ = self;
+pub fn unbind(_: *const VertexBuffer) void {
     gl.BindVertexArray(0);
+}
+
+pub fn sendData(self: *VertexBuffer) void {
+    self.sendVertexData();
+    self.sendIndexData();
 }
 
 /// reallocates the vbo
@@ -106,29 +102,31 @@ pub fn sendVertexData(self: *VertexBuffer) void {
         @ptrCast(self.vertices.items),
         gl.STATIC_DRAW,
     );
+    setupVertexAttributes();
+}
 
-    gl.EnableVertexAttribArray(0);
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), 0);
+/// Assumes a vao is bound
+fn setupVertexAttributes() void {
+    setVertexAttribPointer(0, 3, @sizeOf(Vertex), @offsetOf(Vertex, "position"));
+    setVertexAttribPointer(1, 3, @sizeOf(Vertex), @offsetOf(Vertex, "normal"));
+    setVertexAttribPointer(2, 2, @sizeOf(Vertex), @offsetOf(Vertex, "uv"));
+}
 
+fn setVertexAttribPointer(
+    attr: u4,
+    size: usize,
+    stride: usize,
+    offset: usize,
+) void {
     gl.VertexAttribPointer(
-        1,
-        3,
+        attr,
+        @intCast(size),
         gl.FLOAT,
         gl.FALSE,
-        @sizeOf(Vertex),
-        @offsetOf(Vertex, "normal"),
+        @intCast(stride),
+        @intCast(offset),
     );
-    gl.EnableVertexAttribArray(1);
-
-    gl.VertexAttribPointer(
-        2,
-        2,
-        gl.FLOAT,
-        gl.FALSE,
-        @sizeOf(Vertex),
-        @offsetOf(Vertex, "uv"),
-    );
-    gl.EnableVertexAttribArray(2);
+    gl.EnableVertexAttribArray(attr);
 }
 
 /// reallocates the ebo
@@ -153,8 +151,32 @@ pub fn sendIndexData(self: *VertexBuffer) void {
     gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, self.ebo.?);
     gl.BufferData(
         gl.ELEMENT_ARRAY_BUFFER,
-        @intCast(self.indices.items.len * @sizeOf(u32)),
+        @intCast(self.indices.items.len * @sizeOf(gl.uint)),
         @ptrCast(self.indices.items),
         gl.STATIC_DRAW,
     );
+}
+
+/// Doesn't create any new buffers, deletes the old vao and replaces it with a
+/// new one. The new vao will have the vbo and ebo already setup and nothing else.
+/// The attributes of the old vao are removed entirely.
+pub fn reloadVao(self: *VertexBuffer) void {
+    gl.DeleteVertexArrays(1, @ptrCast(&self.vao.?));
+
+    self.vao = 0;
+    gl.GenVertexArrays(1, @ptrCast(&self.vao.?));
+    gl.BindVertexArray(self.vao.?);
+    defer gl.BindVertexArray(0);
+
+    if (self.vbo) |vbo| {
+        gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
+        setupVertexAttributes();
+    }
+    defer if (self.vbo != null) {
+        gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+    };
+
+    if (self.ebo) |ebo| {
+        gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+    }
 }

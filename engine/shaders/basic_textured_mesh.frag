@@ -1,23 +1,15 @@
 
 out vec4 FragColor;
 
-in vec2 tex_coords;
-in vec3 normal;
-
-struct Material {
-    sampler2D texture_diffuse1;
+in VS_OUT {
+    vec3 normal;
+    vec2 uv;
     vec3 color;
-};
+} fs_in;
 
-uniform Material material;
+uniform sampler2D texture_diffuse1;
 
 void main() {
-    vec3 result = (material.color) * texture(material.texture_diffuse1, tex_coords).rgb;
+    vec3 result = (fs_in.color) * texture(texture_diffuse1, fs_in.uv).rgb;
     FragColor = vec4(result, 1.0);
-    // FragColor = vec4(normal, 1.0);
-
-    // TODO: gamma correction
-    // float gamma = 2.2;
-    // FragColor.rgb = pow(result.rgb, vec3(1.0/gamma));
 }
-

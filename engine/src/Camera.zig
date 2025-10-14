@@ -1,11 +1,9 @@
 const std = @import("std");
-
-const engine = @import("engine.zig");
-const Transform = engine.Transform;
-const math = engine.math;
+const math = @import("math.zig");
 const Vec2 = math.Vec2;
 const Vec3 = math.Vec3;
 const Mat4 = math.Mat4;
+const Transform = @import("Transform.zig");
 
 pub const Direction = enum {
     forward,
@@ -36,7 +34,7 @@ sensitivity: Vec2 = Vec2.init(0.05, 0.05),
 aspect_ratio: f32 = 16.0 / 9.0,
 
 near: f32 = 0.1,
-far: f32 = 100.0,
+far: f32 = 200.0,
 
 /// Don't mutate this
 reset_look_back: bool = false,
@@ -128,20 +126,6 @@ pub fn processMouseMovement(
         }
     }
     self.updateVectors();
-}
-
-pub fn castRay(self: *const Camera, to: Vec2) math.Ray {
-    const world_pos = math.screenToWorldPoint(
-        to,
-        self.getViewMatrix(),
-        self.getPerspectiveMatrix(),
-        engine.windowSize().as(f32),
-    );
-    const dir = world_pos.sub(self.transform.position).normalized();
-    return .{
-        .origin = self.transform.position,
-        .direction = dir,
-    };
 }
 
 pub fn processMouseScroll(self: *Camera, y_offset: f32) void {

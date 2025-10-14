@@ -1,11 +1,11 @@
 const std = @import("std");
 const engine = @import("engine.zig");
 const debug = engine.debug;
-const log = debug.log.scoped(.Scene);
+const log = debug.log;
 const assert = debug.assert;
 const Actor = engine.Actor;
 const Allocator = std.mem.Allocator;
-const HashMap = std.StringHashMap;
+
 const SpotLight = engine.SpotLight;
 const DirLight = engine.DirLight;
 const PointLight = engine.PointLight;
@@ -15,100 +15,102 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 
 const Scene = @This();
 
+fn HashMap(V: type) type {
+    return std.ArrayHashMapUnmanaged([]const u8, V, std.array_hash_map.StringContext, true);
+}
+
 const max_point_lights = 8;
 const max_spot_lights = 8;
 const max_dir_lights = 8;
 
-allocator: Allocator,
-actors: HashMap(*Actor),
-point_lights: HashMap(*PointLight),
-spot_lights: HashMap(*SpotLight),
-dir_lights: HashMap(*DirLight),
+arena: *ArenaAllocator,
+arena_alloc: Allocator,
+actors: HashMap(Actor),
+point_lights: HashMap(PointLight),
+spot_lights: HashMap(SpotLight),
+dir_lights: HashMap(DirLight),
 skybox: Skybox = undefined,
-_skybox_hidden: bool = false,
-name_arena: ArenaAllocator,
+skybox_hidden: bool = false,
 
-pub fn init(allocator: Allocator) Scene {
-    return Scene{
-        .allocator = allocator,
-        .actors = HashMap(*Actor).init(allocator),
-        .point_lights = HashMap(*PointLight).init(allocator),
-        .spot_lights = HashMap(*SpotLight).init(allocator),
-        .dir_lights = HashMap(*DirLight).init(allocator),
-        .name_arena = ArenaAllocator.init(allocator),
+pub fn init(alloc: Allocator) Allocator.Error!Scene {
+    const arena = try alloc.create(std.heap.ArenaAllocator);
+    arena.* = .init(alloc);
+    const arena_alloc = arena.allocator();
+
+    return .{
+        .arena = arena,
+        .arena_alloc = arena_alloc,
+        .actors = try .init(arena_alloc, &.{}, &.{}),
+        .point_lights = try .init(arena_alloc, &.{}, &.{}),
+        .spot_lights = try .init(arena_alloc, &.{}, &.{}),
+        .dir_lights = try .init(arena_alloc, &.{}, &.{}),
     };
 }
 
 pub fn deinit(self: *Scene) void {
-    self.clearActors();
-    self.clearLights();
-    self.name_arena.deinit();
+    const alloc = self.arena.child_allocator;
+    self.arena.deinit();
+    alloc.destroy(self.arena);
 }
 
 /// you don't have to manually call deinit on actor
 /// it will automatically get deleted on scene.deinit
 pub fn createActor(self: *Scene, name: []const u8) *Actor {
-    const actor = self.allocator.create(Actor) catch unreachable;
-    actor.* = Actor.init(self.allocator);
-    actor.id = generateId();
-    const alloc = self.name_arena.allocator();
+    std.debug.assert(!self.actors.contains(name));
+    const alloc = self.arena_alloc;
     const n = alloc.dupe(u8, name) catch unreachable;
-    self.actors.put(n, actor) catch unreachable;
-    return actor;
-}
-
-pub fn actorCount(self: *const Scene) usize {
-    return self.actors.count();
+    const kv = self.actors.getOrPut(alloc, n) catch unreachable;
+    kv.value_ptr.* = Actor.init(
+        alloc,
+        generateId(),
+    );
+    return kv.value_ptr;
 }
 
 pub fn createPointLight(self: *Scene, name: []const u8) *PointLight {
-    const light = self.allocator.create(PointLight) catch unreachable;
-    light.* = PointLight{};
     assert(
         self.point_lights.count() < max_point_lights,
         "Too many point lights",
         .{},
     );
-    const alloc = self.name_arena.allocator();
-    const n = alloc.alloc(u8, name.len) catch unreachable;
-    @memcpy(n, name);
-    self.point_lights.put(n, light) catch unreachable;
-    return light;
+
+    const alloc = self.arena_alloc;
+    const n = alloc.dupe(u8, name) catch unreachable;
+    const kv = self.point_lights.getOrPut(alloc, n) catch unreachable;
+    kv.value_ptr.* = .{};
+    return kv.value_ptr;
 }
 
 pub fn createSpotLight(self: *Scene, name: []const u8) *SpotLight {
-    const light = self.allocator.create(SpotLight) catch unreachable;
-    light.* = SpotLight{};
     assert(
         self.spot_lights.count() < max_spot_lights,
         "Too many spot lights",
         .{},
     );
 
-    const alloc = self.name_arena.allocator();
-    const n = alloc.alloc(u8, name.len) catch unreachable;
-    @memcpy(n, name);
-    self.spot_lights.put(n, light) catch unreachable;
-    return light;
+    const alloc = self.arena_alloc;
+    const n = alloc.dupe(u8, name) catch unreachable;
+    const kv = self.spot_lights.getOrPut(alloc, n) catch unreachable;
+    kv.value_ptr.* = .{};
+    return kv.value_ptr;
 }
 
 pub fn createDirLight(self: *Scene, name: []const u8) *DirLight {
-    const light = self.allocator.create(DirLight) catch unreachable;
-    light.* = DirLight{};
     assert(
         self.dir_lights.count() < max_dir_lights,
         "Too many dir lights",
         .{},
     );
-    const alloc = self.name_arena.allocator();
-    const n = alloc.alloc(u8, name.len) catch unreachable;
-    @memcpy(n, name);
-    self.dir_lights.put(n, light) catch unreachable;
-    return light;
+
+    const alloc = self.arena_alloc;
+    const n = alloc.dupe(u8, name) catch unreachable;
+    const kv = self.dir_lights.getOrPut(alloc, n) catch unreachable;
+    kv.value_ptr.* = .{};
+    return kv.value_ptr;
 }
 
 pub fn deleteActor(self: *Scene, actor: *Actor) void {
-    if (self.actorCount() == 0) {
+    if (self.actors.count() == 0) {
         log.err(
             "Trying to delete an actor when there are no actors in the scene",
             .{},
@@ -122,14 +124,14 @@ pub fn deleteActor(self: *Scene, actor: *Actor) void {
                 "something went really wrong",
                 .{},
             );
-            self.allocator.destroy(actor);
+            self.alloc.destroy(actor);
             break;
         }
     }
 }
 
 pub fn deleteActorByName(self: *Scene, name: []const u8) void {
-    if (self.actorCount() == 0) {
+    if (self.actors.count() == 0) {
         log.err(
             "Trying to delete an actor when there are no actors in the scene",
             .{},
@@ -137,7 +139,7 @@ pub fn deleteActorByName(self: *Scene, name: []const u8) void {
     }
 
     if (self.actors.get(name)) |actor| {
-        self.allocator.destroy(actor);
+        self.alloc.destroy(actor);
         assert(
             self.actors.remove(name),
             "something went really wrong",
@@ -147,58 +149,9 @@ pub fn deleteActorByName(self: *Scene, name: []const u8) void {
 }
 
 pub fn hasLights(self: *const Scene) bool {
-    // zig fmt: off
-    return self.point_lights.count() > 0
-        or self.spot_lights.count() > 0
-        or self.dir_lights.count() > 0;
-}
-
-pub fn clearActors(self: *Scene) void {
-    var iter = self.actors.iterator();
-    while (iter.next()) |actor| {
-        actor.value_ptr.*.deinit();
-        self.allocator.destroy(actor.value_ptr.*);
-    }
-    self.actors.clearAndFree();
-}
-
-pub fn clearLights(self: *Scene) void {
-    var p_iter = self.point_lights.iterator();
-    while (p_iter.next()) |light| {
-        self.allocator.destroy(light.value_ptr.*);
-    }
-    self.point_lights.clearAndFree();
-
-    var s_iter = self.spot_lights.iterator();
-    while (s_iter.next()) |light| {
-        self.allocator.destroy(light.value_ptr.*);
-    }
-    self.spot_lights.clearAndFree();
-
-    var d_iter = self.dir_lights.iterator();
-    while (d_iter.next()) |light| {
-        self.allocator.destroy(light.value_ptr.*);
-    }
-    self.dir_lights.clearAndFree();
-}
-
-pub fn nameTaken(self: *const Scene, name: []const u8) bool {
-    if (self.actors.get(name) != null) {
-        return true;
-    }
-
-    if (self.point_lights.get(name) != null) {
-        return true;
-    }
-
-    if (self.spot_lights.get(name) != null)  {
-        return true;
-    }
-
-    if (self.dir_lights.get(name) != null) {
-        return true;
-    }
-    return false;
+    return self.point_lights.count() > 0 or
+        self.spot_lights.count() > 0 or
+        self.dir_lights.count() > 0;
 }
 
 pub fn loadDefaultSkybox(self: *Scene) void {
@@ -212,7 +165,7 @@ pub fn loadDefaultSkybox(self: *Scene) void {
     });
 }
 
-pub fn getActorName(self: *const Scene, actor: *const Actor,) ?[]const u8 {
+pub fn getActorName(self: *const Scene, actor: *const Actor) ?[]const u8 {
     const id = actor.id;
     var iter = self.actors.iterator();
     while (iter.next()) |kv| {
@@ -231,32 +184,11 @@ pub fn setSkybox(self: *Scene, paths: [6][]const u8) void {
 }
 
 pub fn setSkyboxHidden(self: *Scene, hidden: bool) void {
-    self._skybox_hidden = hidden;
+    self.skybox_hidden = hidden;
 }
 
-const math = engine.math;
-const Vec3 = math.Vec3;
-
-pub const HitInfo = struct { 
-    hit: bool,
-    hit_point: Vec3,
-    distance: f32,
-};
-
-const Ray = math.Ray;
-
-pub fn getMouseHit() ?*Actor {
-    return raycastHit(engine.input.mouseCastRay());
-}
-
-pub fn raycastHit(ray: Ray) ?*Actor {
-    _ = ray; // autofix
-
-}
-
-// this is pretty stupid
 var current_id: usize = 0;
 fn generateId() usize {
-    current_id += 1;
-    return current_id - 1;
+    defer current_id += 1;
+    return current_id;
 }

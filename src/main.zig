@@ -1,53 +1,109 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
-const assert = std.debug.assert;
-const ArrayList = std.ArrayList;
-const builtin = @import("builtin");
-
 const engine = @import("engine");
-const renderer = engine.renderer;
-const Shader = engine.Shader;
-const VertexBuffer = engine.VertexBuffer;
-const Color = engine.Color;
 const math = engine.math;
-const Vec3 = math.Vec3;
-const gl = engine.gl;
-const debug = engine.debug;
-const utils = engine.utils;
-const Pair = utils.Pair;
+const log = engine.debug.log.scoped(.main);
+const builtin = @import("builtin");
+const res = engine.res;
+const fs = engine.fs;
 const ig = engine.ig;
 const input = engine.input;
+const renderer = engine.renderer;
+const debug = renderer.debug;
 
-const log = debug.log.scoped(.main);
+const cube_len: usize = 5000;
 
-fn init() !void {
+const Vec3 = math.Vec3;
+
+fn init(rp: *res.ResourcePool) !void {
+    _ = rp; // autofix
     const scene = engine.scene();
-    const actor = scene.createActor("cube");
-    const m = actor.render_item.createMesh();
-    m.* = try renderer.cubeModel().meshes.items[0].clone();
-    m.sendData();
-
-    for (actor.render_item.meshes.items) |*mesh| {
-        actor.bounding_box.insertMesh(mesh);
-    }
+    scene.skybox_hidden = true;
 }
 
-fn update() !void {}
+var start: Vec3 = .init(0, 0, -1);
+var end: Vec3 = .init(0, 0, 1);
+var thickness: f32 = 0.1;
+
+fn update() !void {
+    const mouse_ray = input.getMouseRay();
+    const aabb = renderer.shapes().cube.aabb;
+
+    const hit = mouse_ray.getIntersection(aabb);
+
+    if (engine.cursorEnabled()) {
+        ig.begin("hm");
+        defer ig.end();
+        ig.fpsCounter();
+        const mouse_pos = input.getMousePos();
+        ig.print("mouse pos: {f}", .{mouse_pos});
+        if (hit != null) {
+            ig.text("intersection");
+        } else {
+            ig.text("no intersection");
+        }
+
+        _ = ig.dragVec3Ex("start", &start, 0.1, null, null);
+        _ = ig.dragVec3Ex("end", &end, 0.1, null, null);
+        _ = ig.dragFloatEx("thickness", &thickness, 0.01, 0, 100);
+    }
+
+    if (hit) |t| {
+        const p = mouse_ray.at(t);
+        renderer.debug.drawCube(.{
+            .color = .green,
+            .transform = .{
+                .position = p,
+                .scale = .fromValue(0.1),
+            },
+        });
+    }
+
+    debug.drawArrow(.{
+        .start = start,
+        .end = end,
+        .thickness = thickness,
+        .color = .orange,
+    });
+
+    debug.drawCube(.{
+        .color = .yellow,
+        .transform = .{
+            .position = start,
+            .scale = .fromValue(0.1),
+        },
+    });
+    debug.drawCube(.{
+        .color = .cyan,
+        .transform = .{
+            .position = end,
+            .scale = .fromValue(0.1),
+        },
+    });
+    debug.drawCube(.{
+        .color = .magenta,
+        .transform = .{
+            .position = Vec3.init(0, 0, -1),
+            .scale = .fromValue(0.1),
+        },
+    });
+}
 
 fn deinit() void {}
 
 pub fn main() !void {
+    defer log.info("TERMINATED", .{});
+
     if (builtin.os.tag == .linux) {
         try engine.init(&.{
             .width = 3840,
             .height = 2160,
-            .name = "lightray",
+            .name = "linalg",
         });
     } else {
         try engine.init(&.{
             .width = 1920,
             .height = 1080,
-            .name = "lightray",
+            .name = "linalg",
         });
     }
     defer engine.deinit();

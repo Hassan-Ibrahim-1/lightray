@@ -1,58 +1,29 @@
 const std = @import("std");
 const engine = @import("engine.zig");
+const res = engine.res;
 const Color = engine.Color;
-const Texture = engine.Texture;
 const ArrayList = std.ArrayList;
-const Shader = engine.Shader;
 const Allocator = std.mem.Allocator;
 
 const Material = @This();
 
-color: Color = Color.white,
-diffuse_textures: ArrayList(Texture),
-specular_textures: ArrayList(Texture),
-shader: ?*Shader = null,
+color: Color = .white,
+diffuse_textures: ArrayList(res.Texture.Handle),
+specular_textures: ArrayList(res.Texture.Handle),
+shader: ?res.Shader.Handle = null,
 shininess: f32 = 1000.0,
 
-pub fn init(allocator: Allocator) Material {
+pub fn init() Material {
     return Material{
-        .diffuse_textures = ArrayList(Texture).init(allocator),
-        .specular_textures = ArrayList(Texture).init(allocator),
+        .diffuse_textures = .empty,
+        .specular_textures = .empty,
     };
 }
 
 /// doesn't deallocate texture gpu memory
-pub fn deinit(self: *Material) void {
-    self.diffuse_textures.deinit();
-    self.specular_textures.deinit();
-}
-
-pub fn createDiffuseTexture(self: *Material, path: []const u8) void {
-    self.diffuse_textures.append(
-        Texture.init(path),
-    ) catch unreachable;
-}
-
-pub fn createSpecularTexture(self: *Material, path: []const u8) *Texture {
-    return self.specular_textures.append(
-        Texture.init(path),
-    ) catch unreachable;
-}
-
-pub fn hasDiffuseTextures(self: *const Material) bool {
-    return self.diffuse_textures.items.len > 0;
-}
-
-pub fn hasSpecularTextures(self: *const Material) bool {
-    return self.specular_textures.items.len > 0;
-}
-
-pub fn diffuseTextureCount(self: *const Material) usize {
-    return self.diffuse_textures.items.len;
-}
-
-pub fn specularTextureCount(self: *const Material) usize {
-    return self.specular_textures.items.len;
+pub fn deinit(self: *Material, alloc: Allocator) void {
+    self.diffuse_textures.deinit(alloc);
+    self.specular_textures.deinit(alloc);
 }
 
 pub fn jsonStringify(

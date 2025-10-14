@@ -1,11 +1,9 @@
 out vec4 FragColor;
 
-struct Material {
+in VS_OUT {
     vec3 color;
-};
-
-uniform Material material;
+} fs_in;
 
 void main() {
-    FragColor = vec4(material.color, 1.0);
+    FragColor = vec4(fs_in.color, 1.0);
 }

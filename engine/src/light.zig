@@ -1,10 +1,11 @@
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+
 const engine = @import("engine.zig");
 const math = engine.math;
 const Vec3 = math.Vec3;
 const Color = engine.Color;
-const Shader = engine.Shader;
-const std = @import("std");
-const Allocator = std.mem.Allocator;
+const res = engine.res;
 
 pub const PointLight = struct {
     ambient: Color = Color.white,
@@ -16,51 +17,55 @@ pub const PointLight = struct {
 
     pub fn sendToShader(
         self: *PointLight,
-        allocator: Allocator,
+        alloc: Allocator,
         name: [*:0]const u8,
-        shader: *Shader,
-    ) void {
+        shader: *res.Shader,
+    ) Allocator.Error!void {
         shader.use();
-        var str = std.fmt.allocPrintZ(
-            allocator,
+        var str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.ambient",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.ambient.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.diffuse",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.diffuse.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.specular",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.specular.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.position",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.position,
         );
-        allocator.free(str);
+        alloc.free(str);
     }
 };
 
@@ -78,81 +83,88 @@ pub const SpotLight = struct {
 
     pub fn sendToShader(
         self: *SpotLight,
-        allocator: Allocator,
+        alloc: Allocator,
         name: [*:0]const u8,
-        shader: *Shader,
-    ) void {
+        shader: *res.Shader,
+    ) Allocator.Error!void {
         shader.use();
-        var str = std.fmt.allocPrintZ(
-            allocator,
+        var str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.ambient",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.ambient.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.diffuse",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.diffuse.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.specular",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.specular.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.position",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.position,
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.direction",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.direction,
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.inner_cutoff",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setFloat(
             str,
             self.inner_cutoff,
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.outer_cutoff",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setFloat(
             str,
             self.outer_cutoff,
         );
-        allocator.free(str);
+        alloc.free(str);
     }
 };
 
@@ -167,60 +179,65 @@ pub const DirLight = struct {
 
     pub fn sendToShader(
         self: *DirLight,
-        allocator: Allocator,
+        alloc: Allocator,
         name: [*:0]const u8,
-        shader: *Shader,
-    ) void {
+        shader: *res.Shader,
+    ) Allocator.Error!void {
         shader.use();
-        var str = std.fmt.allocPrintZ(
-            allocator,
+        var str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.ambient",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.ambient.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.diffuse",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.diffuse.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.specular",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.specular.clampedVec3(),
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.position",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.position,
         );
-        allocator.free(str);
-        str = std.fmt.allocPrintZ(
-            allocator,
+        alloc.free(str);
+        str = try std.fmt.allocPrintSentinel(
+            alloc,
             "{s}.direction",
             .{name},
-        ) catch unreachable;
+            0,
+        );
         shader.setVec3(
             str,
             self.direction,
         );
-        allocator.free(str);
+        alloc.free(str);
     }
 };

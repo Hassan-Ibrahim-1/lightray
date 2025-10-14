@@ -6,7 +6,7 @@ const engine = @import("engine.zig");
 const Window = engine.Window;
 const glfw = engine.glfw;
 const ig = engine.ig;
-const log = @import("log.zig");
+const log = engine.debug.log.scoped(.input);
 const math = @import("math.zig");
 const Vec2 = math.Vec2;
 const Vec3 = math.Vec3;
@@ -56,11 +56,13 @@ var alloc: Allocator = undefined;
 // TODO: wrap this in a state struct
 
 /// stored as normalized device coordinates
-var mouse_pos = Vec2.fromValue(0);
-var last_mouse_pos = Vec2.fromValue(0);
+var mouse_pos: Vec2 = .zero;
+var last_mouse_pos: Vec2 = .zero;
+var mouse_pos_ndc: Vec2 = .zero;
+var mouse_ray: math.Ray = .zero;
 var first_mouse = true;
 
-var scroll_delta = Vec2.fromValue(0);
+var scroll_delta: Vec2 = .zero;
 
 var lmb_down = false;
 var lmb_clicked = false;
@@ -69,11 +71,11 @@ var rmb_down = false;
 var rmb_clicked = false;
 var rmb_released = false;
 
-var key_pressed = [_]bool{false} ** max_keys;
-var key_released = [_]bool{false} ** max_keys;
-var key_down = [_]bool{false} ** max_keys;
+var key_pressed: [max_keys]bool = @splat(false);
+var key_released: [max_keys]bool = @splat(false);
+var key_down: [max_keys]bool = @splat(false);
 
-var user_key_callbacks: std.ArrayList(KeyCallbackFn) = undefined;
+var user_key_callbacks: std.ArrayList(KeyCallbackFn) = .empty;
 
 var camera: *Camera = undefined;
 
@@ -82,7 +84,7 @@ var imio: *ig.ImGuiIO_t = undefined;
 
 pub fn init(allocator: Allocator) void {
     alloc = allocator;
-    user_key_callbacks = std.ArrayList(KeyCallbackFn).init(alloc);
+    user_key_callbacks = .empty;
     window = engine.window();
     imio = engine.imGuiIo();
 
@@ -95,7 +97,7 @@ pub fn init(allocator: Allocator) void {
 }
 
 pub fn deinit() void {
-    user_key_callbacks.deinit();
+    user_key_callbacks.deinit(alloc);
 }
 
 fn setCallbacks() void {
@@ -139,22 +141,17 @@ pub fn endFrame() void {
     updateMouseButtons();
 }
 
-/// normalized between 0.0 and 1.0
-pub fn getNdcMousePos() Vec2 {
-    return mouse_pos;
-}
-
 pub fn getScrollDelta() Vec2 {
     return scroll_delta;
 }
 
 /// mouse pos in screen space
 pub fn getMousePos() Vec2 {
-    // convert ndc mouse coords to world space
-    const mouse_ndc = Vec4.init(mouse_pos.x, mouse_pos.y, 0.0, 1.0);
-    const inverse_view = camera.getViewMatrix().inverse();
-    const world_space = inverse_view.mulVec4(mouse_ndc);
-    return Vec2.fromVec4(world_space);
+    return mouse_pos;
+}
+
+pub fn getMouseRay() math.Ray {
+    return mouse_ray;
 }
 
 pub fn mouseButtonDown(button: MouseButton) bool {
@@ -206,20 +203,6 @@ pub fn keyDown(key: Key) bool {
     return key_down[@intCast(@intFromEnum(key))];
 }
 
-pub fn mouseCastRay() math.Ray {
-    const world_pos = math.screenToWorldPoint(
-        getMousePos(),
-        camera.getViewMatrix(),
-        camera.getPerspectiveMatrix(),
-        engine.windowSize().as(f32),
-    );
-    const dir = world_pos.sub(camera.transform.position).normalized();
-    return .{
-        .origin = camera.transform.position,
-        .direction = dir,
-    };
-}
-
 fn updateMouseButtons() void {
     lmb_clicked = false;
     lmb_released = false;
@@ -234,6 +217,8 @@ fn updateKeys() void {
         key_pressed[i] = false;
         key_released[i] = false;
 
+        // weird hack. had to modify mach-glfw to make the c functions accessible
+        // window.getKey(@enumFromtInt(i)) wasn't working
         const action = Action.fromCint(
             glfw.glfwGetKey(
                 window.glfw_window,
@@ -256,7 +241,7 @@ fn keyCallback(
     c_scancode: c_int,
     c_action: c_int,
     c_mods: c_int,
-) callconv(.C) void {
+) callconv(.c) void {
     //
     ig.setKeyCallback(
         @ptrCast(win),
@@ -302,31 +287,31 @@ fn mouseMovementCallback(
     win: ?*glfw.GLFWwindow,
     posx: f64,
     posy: f64,
-) callconv(.C) void {
+) callconv(.c) void {
     ig.setMousemovementCallback(@ptrCast(win), posx, posy);
-    var width: c_int = 0;
-    var height: c_int = 0;
-    glfw.glfwGetWindowSize(win.?, &width, &height);
-    const viewport = Vec4.init(
-        0,
-        0,
-        @floatFromInt(width),
-        @floatFromInt(height),
-    );
-    const w = Vec3.init(@floatCast(posx), @floatCast(posy), 0);
-    const real_pos = math.unProject(
-        w,
-        &Mat4.identity,
-        &Mat4.identity,
-        viewport,
-    );
-    mouse_pos.x = real_pos.x;
-    mouse_pos.y = -real_pos.y;
-    if (first_mouse) {
-        last_mouse_pos.x = @floatCast(posx);
-        last_mouse_pos.y = @floatCast(posy);
-        first_mouse = false;
-    }
+    // var width: c_int = 0;
+    // var height: c_int = 0;
+    // glfw.glfwGetWindowSize(win.?, &width, &height);
+    // const viewport = Vec4.init(
+    //     0,
+    //     0,
+    //     @floatFromInt(width),
+    //     @floatFromInt(height),
+    // );
+    // const w = Vec3.init(@floatCast(posx), @floatCast(posy), 0);
+    // const real_pos = math.unProject(
+    //     w,
+    //     &Mat4.identity,
+    //     &Mat4.identity,
+    //     viewport,
+    // );
+    // mouse_pos.x = real_pos.x;
+    // mouse_pos.y = -real_pos.y;
+    // if (first_mouse) {
+    //     last_mouse_pos.x = @floatCast(posx);
+    //     last_mouse_pos.y = @floatCast(posy);
+    //     first_mouse = false;
+    // }
 
     if (!engine.cursorEnabled()) {
         const x_offset = @as(f32, @floatCast(posx)) - last_mouse_pos.x;
@@ -334,15 +319,48 @@ fn mouseMovementCallback(
         camera.processMouseMovement(x_offset, y_offset, true, false);
     }
 
-    last_mouse_pos.x = @floatCast(posx);
-    last_mouse_pos.y = @floatCast(posy);
+    mouse_pos = .{
+        .x = @floatCast(posx),
+        .y = @floatCast(posy),
+    };
+
+    last_mouse_pos = .{
+        .x = @floatCast(posx),
+        .y = @floatCast(posy),
+    };
+    computeMouseRay();
+}
+
+const utils = engine.utils;
+
+fn computeMouseRay() void {
+    mouse_pos_ndc = utils.toNdc(
+        mouse_pos,
+        engine.windowSize().as(f32).vec2(),
+    );
+
+    const near_clip = Vec4.init(mouse_pos_ndc.x, mouse_pos_ndc.y, -1.0, 1.0);
+    const far_clip = Vec4.init(mouse_pos_ndc.x, mouse_pos_ndc.y, 1.0, 1.0);
+
+    const mats = engine.renderer.getCameraMatrices();
+    const inverse_vp = mats.proj.mul(&mats.view).inverse().transpose();
+
+    var near_world = inverse_vp.mulVec4(near_clip);
+    near_world = near_world.divValue(near_world.w);
+    var far_world = inverse_vp.mulVec4(far_clip);
+    far_world = far_world.divValue(far_world.w);
+
+    mouse_ray = .{
+        .origin = Vec3.fromVec4(near_world),
+        .direction = Vec3.fromVec4(far_world.sub(near_world)).normalized(),
+    };
 }
 
 fn mouseScrollCallback(
     win: ?*glfw.GLFWwindow,
     xoffset: f64,
     yoffset: f64,
-) callconv(.C) void {
+) callconv(.c) void {
     ig.setMouseScrollCallback(@ptrCast(win), xoffset, yoffset);
     scroll_delta = Vec2.init(
         @floatCast(xoffset),
@@ -357,7 +375,7 @@ fn mouseButtonCallback(
     c_button: c_int,
     c_action: c_int,
     mods: c_int,
-) callconv(.C) void {
+) callconv(.c) void {
     ig.setMouseButtonCallback(
         @ptrCast(win),
         c_button,
@@ -391,7 +409,6 @@ fn mouseButtonCallback(
         }
     }
 }
-
 pub const Key = enum(i32) {
     invalid = 0,
     space = 32,

@@ -1,62 +1,62 @@
 const std = @import("std");
-const gl = @import("gl");
-const debug = @import("debug.zig");
-const log = debug.log.scoped(.Shader);
+const gl = engine.gl;
+const debug = engine.debug;
+const log = debug.log;
 const Allocator = std.mem.Allocator;
-const math = @import("math.zig");
+const math = engine.math;
 const Vec3 = math.Vec3;
+const UVec3 = math.UVec3;
 const Vec2 = math.Vec2;
 const Mat4 = math.Mat4;
 const Mat3 = math.Mat3;
-const engine = @import("engine.zig");
+const engine = @import("../engine.zig");
 const Texture = engine.Texture;
+const Shader = engine.res.Shader;
 const builtin = @import("builtin");
 
-const Shader = @This();
+const ComputeShader = @This();
+
+pub const Error = Shader.Error;
+pub const Handle = usize;
 
 allocator: Allocator,
 /// Don't mutate this
 id: c_uint,
-vertex_path: []const u8,
-fragment_path: []const u8,
-
-pub const Error = error{
-    CompileError,
-    LinkError,
-} || std.fs.File.OpenError;
+compute_path: []const u8,
 
 pub fn init(
     allocator: Allocator,
-    vertex_path: []const u8,
-    fragment_path: []const u8,
-) Error!Shader {
+    compute_path: []const u8,
+) Error!ComputeShader {
     const id = gl.CreateProgram();
-    try loadShader(allocator, id, vertex_path, gl.VERTEX_SHADER);
-    try loadShader(allocator, id, fragment_path, gl.FRAGMENT_SHADER);
+    try loadShader(allocator, id, compute_path, gl.COMPUTE_SHADER);
     try linkProgram(id);
 
-    return Shader{
+    return .{
         .allocator = allocator,
         .id = id,
-        .vertex_path = vertex_path,
-        .fragment_path = fragment_path,
+        .compute_path = compute_path,
     };
 }
 
-pub fn deinit(self: *Shader) void {
+pub fn deinit(self: *ComputeShader) void {
     gl.DeleteProgram(self.id);
 }
 
-pub fn use(self: *const Shader) void {
+pub fn dispatch(
+    self: *const ComputeShader,
+    num_groups: UVec3,
+) void {
     gl.UseProgram(self.id);
+    gl.DispatchCompute(num_groups.x, num_groups.y, num_groups.z);
+    gl.MemoryBarrier(gl.ALL_BARRIER_BITS);
 }
 
-pub fn reload(self: *Shader) !void {
+pub fn reload(self: *ComputeShader) !void {
     self.deinit();
-    self.* = try Shader.init(
+    self.* = try ComputeShader.init(
         self.allocator,
-        self.vertex_path,
-        self.fragment_path,
+        self.compute_path,
     );
 }
 
@@ -99,6 +99,21 @@ fn loadShader(
     gl.AttachShader(id, shader);
 }
 
+fn linkProgram(shader: c_uint) Error!void {
+    gl.LinkProgram(shader);
+    var success: c_int = 0;
+    gl.GetProgramiv(shader, gl.LINK_STATUS, &success);
+    if (success == gl.FALSE) {
+        var err_log: [512]u8 = undefined;
+        gl.GetProgramInfoLog(shader, err_log.len, null, &err_log);
+        log.err(
+            "Shader program link error: {s}",
+            .{std.mem.sliceTo(&err_log, 0)},
+        );
+        return error.LinkError;
+    }
+}
+
 fn checkShaderCompilationSuccess(
     shader: c_uint,
 ) Error!void {
@@ -115,24 +130,8 @@ fn checkShaderCompilationSuccess(
     }
 }
 
-fn linkProgram(shader: c_uint) Error!void {
-    gl.LinkProgram(shader);
-    var success: c_int = 0;
-    gl.GetProgramiv(shader, gl.LINK_STATUS, &success);
-    if (success == gl.FALSE) {
-        var err_log: [512]u8 = undefined;
-        gl.GetProgramInfoLog(shader, err_log.len, null, &err_log);
-        log.err(
-            "Shader program link error: {s}",
-            .{std.mem.sliceTo(&err_log, 0)},
-        );
-        debug.checkGlError();
-        return error.LinkError;
-    }
-}
-
 pub fn setFloat(
-    self: *Shader,
+    self: *ComputeShader,
     name: [:0]const u8,
     f: f32,
 ) void {
@@ -143,7 +142,7 @@ pub fn setFloat(
 }
 
 pub fn setVec3(
-    self: *Shader,
+    self: *ComputeShader,
     name: [:0]const u8,
     v: Vec3,
 ) void {
@@ -154,7 +153,7 @@ pub fn setVec3(
 }
 
 pub fn setVec2(
-    self: *Shader,
+    self: *ComputeShader,
     name: [:0]const u8,
     v: Vec2,
 ) void {
@@ -165,7 +164,7 @@ pub fn setVec2(
 }
 
 pub fn setMat3(
-    self: *Shader,
+    self: *ComputeShader,
     name: [:0]const u8,
     mat: *const Mat3,
 ) void {
@@ -176,7 +175,7 @@ pub fn setMat3(
 }
 
 pub fn setMat4(
-    self: *Shader,
+    self: *ComputeShader,
     name: [:0]const u8,
     mat: *const Mat4,
 ) void {
@@ -187,11 +186,10 @@ pub fn setMat4(
 }
 
 pub fn setInt(
-    self: *Shader,
+    self: *ComputeShader,
     name: [*:0]const u8,
     x: i32,
 ) void {
-    debug.checkGlError();
     const loc = gl.GetUniformLocation(self.id, name);
     if (self.ensureValidLoc(loc, name)) {
         gl.Uniform1i(loc, @intCast(x));
@@ -199,7 +197,7 @@ pub fn setInt(
 }
 
 pub fn setUint(
-    self: *Shader,
+    self: *ComputeShader,
     name: [*:0]const u8,
     x: u32,
 ) void {
@@ -213,7 +211,7 @@ pub fn setUint(
 /// DO NOT PASS IN THE TEXTURE HANDLE
 /// rather pass in the slot that the texture is bound to
 pub fn setSampler(
-    self: *Shader,
+    self: *ComputeShader,
     name: [*:0]const u8,
     slot: usize,
 ) void {
@@ -225,7 +223,7 @@ pub fn setSampler(
 }
 
 fn ensureValidLoc(
-    self: *Shader,
+    self: *ComputeShader,
     loc: c_int,
     uniform_name: [*:0]const u8,
 ) bool {
@@ -241,7 +239,7 @@ fn ensureValidLoc(
 }
 
 pub fn hasUniform(
-    self: *const Shader,
+    self: *const ComputeShader,
     name: [*:0]const u8,
 ) bool {
     const loc = gl.GetUniformLocation(self.id, name);

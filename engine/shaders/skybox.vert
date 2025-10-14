@@ -1,5 +1,4 @@
-
-layout (location = 0) in vec3 a_position;
+layout(location = 0) in vec3 a_position;
 
 out vec3 tex_coord;
 
@@ -12,4 +11,3 @@ void main() {
     // To draw behind everthing else
     gl_Position = pos.xyww;
 }
-

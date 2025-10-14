@@ -128,7 +128,7 @@ fn framebufferSizeCallback(
     window: ?*glfw.GLFWwindow,
     width: c_int,
     height: c_int,
-) callconv(.C) void {
+) callconv(.c) void {
     _ = window;
     gl.Viewport(0, 0, @intCast(width), @intCast(height));
 }

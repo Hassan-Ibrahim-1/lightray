@@ -12,9 +12,8 @@ pub const Billboard = @import("Billboard.zig");
 pub const Camera = @import("Camera.zig");
 pub const cast = @import("cast.zig");
 pub const Color = @import("Color.zig");
-pub const ComputeTexture = @import("ComputeTexture.zig");
 pub const debug = @import("debug.zig");
-const editor = @import("editor/editor.zig");
+const editor = @import("editor.zig");
 const Fs = @import("Fs.zig");
 pub const ig = @import("imgui.zig");
 pub const input = @import("input.zig");
@@ -22,37 +21,22 @@ const light = @import("light.zig");
 pub const PointLight = light.PointLight;
 pub const SpotLight = light.SpotLight;
 pub const DirLight = light.DirLight;
-const m = @import("mesh.zig");
-pub const Mesh = m.Mesh;
-pub const DrawCommand = m.DrawCommand;
-pub const DrawCommandMode = m.DrawCommandMode;
-pub const DrawCommandType = m.DrawCommandType;
 pub const Material = @import("Material.zig");
 pub const math = @import("math.zig");
 const Vec3 = math.Vec3;
 const Vec2 = math.Vec2;
-pub const Model = @import("Model.zig");
-pub const physics = @import("physics/physics.zig");
-pub const renderer = @import("renderer/renderer.zig");
+pub const renderer = @import("renderer.zig");
 pub const RenderItem = @import("renderer/RenderItem.zig");
+pub const res = @import("res.zig");
 pub const Scene = @import("Scene.zig");
-pub const Shader = @import("Shader.zig");
 pub const Skybox = @import("Skybox.zig");
-const text = @import("text.zig");
-pub const Texture = @import("Texture.zig");
 pub const Transform = @import("Transform.zig");
 pub const utils = @import("utils.zig");
 const Size = utils.Size;
-pub const Vertex = @import("vertex.zig");
-pub const VertexBuffer = @import("VertexBuffer.zig");
+pub const Vertex = @import("vertex.zig").Vertex;
 pub const Window = @import("Window.zig");
+pub const trait = @import("trait.zig");
 
-pub const ComputeShader = if (builtin.os.tag != .macos) val: {
-    break :val @import("ComputeShader.zig");
-} else val: {
-    break :val {};
-};
-pub const String = ArrayList(u8);
 pub const glfw = @cImport({
     @cDefine("GLFW_INCLUDE_NONE", "1");
     @cInclude("GLFW/glfw3.h");
@@ -74,7 +58,7 @@ pub const fs = Fs.init(&.{
 const log = debug.log.scoped(.engine);
 const GPA = std.heap.DebugAllocator(.{ .safety = true });
 pub const Application = struct {
-    init: *const fn () anyerror!void,
+    init: *const fn (*res.ResourcePool) anyerror!void,
     update: *const fn () anyerror!void,
     deinit: *const fn () void,
 };
@@ -85,11 +69,14 @@ const EngineInitInfo = struct {
     name: [*:0]const u8,
 };
 
+// TODO: fix undefined repetition
 const State = struct {
     gpa: GPA = undefined,
     alloc: Allocator = undefined,
     arena: std.heap.ArenaAllocator = undefined,
     frame_arena: std.heap.ArenaAllocator = undefined,
+
+    resource_pool: res.ResourcePool = undefined,
 
     window: Window = undefined,
     app: *const Application = undefined,
@@ -99,30 +86,34 @@ const State = struct {
     // used for setting a custom camera
     user_camera: ?*Camera = null,
     wireframe_enabled: bool = false,
-    shaders: StringHashMap(*Shader) = undefined,
+    shaders: StringHashMap(res.Shader.Handle) = undefined,
     cursor_enabled: bool = false,
     scene: Scene = undefined,
     imio: *ig_raw.ImGuiIO_t = undefined,
     clear_color: Color = undefined,
-    models: ArrayList(*Model) = undefined,
+    models: ArrayList(res.Model.Handle) = undefined,
 };
 
 var state = State{};
 
 pub fn init(init_info: *const EngineInitInfo) !void {
-    initAllocator();
+    initAllocators();
+    state.resource_pool = .init(state.alloc);
     try initWindow(init_info);
     initCamera();
-    state.shaders = StringHashMap(*Shader).init(state.arena.allocator());
+    state.shaders = .init(state.arena.allocator());
     state.clear_color = .from(26);
-    initScene();
+    try initScene();
     initImGui(init_info);
-    state.models = .init(state.arena.allocator());
+    state.models = .empty;
 
-    try renderer.init(state.alloc);
+    try renderer.init(
+        state.alloc,
+        state.frame_arena.allocator(),
+        &state.resource_pool,
+    );
     input.init(state.alloc);
-    try text.init(state.alloc);
-    editor.init();
+    editor.init(state.alloc, &state.resource_pool);
 
     // for text rendering
     gl.Enable(gl.BLEND);
@@ -134,26 +125,36 @@ pub fn init(init_info: *const EngineInitInfo) !void {
 pub fn deinit() void {
     state.app.deinit();
 
-    editor.saveActorData(fs.savePath("save.json"));
-    editor.saveLightData(fs.savePath("light_save.json"));
+    std.fs.cwd().makeDir(
+        fs.info.save_dir,
+    ) catch |err| if (err != error.PathAlreadyExists) unreachable;
+
+    // editor.saveActorData(fs.savePath("save.json")) catch |err| {
+    //     log.err("failed to save actor data: {s}", .{@errorName(err)});
+    //     @panic("whoops");
+    // };
+    editor.saveLightData(fs.savePath("light_save.json")) catch |err| {
+        log.err("failed to save actor data: {s}", .{@errorName(err)});
+        @panic("whoops");
+    };
 
     input.deinit();
-    text.deinit();
     renderer.deinit();
-    deinitShaders();
-    deinitModels();
     deinitImGui();
+
+    state.resource_pool.deinit();
     state.scene.deinit();
 
     deinitWindow();
 
     state.frame_arena.deinit();
     state.arena.deinit();
+
     std.debug.assert(state.gpa.deinit() == .ok);
 }
 
-pub fn windowSize() Size {
-    return Size{
+pub fn windowSize() Size(u32) {
+    return .{
         .width = state.window.width,
         .height = state.window.height,
     };
@@ -162,6 +163,8 @@ pub fn windowSize() Size {
 pub fn window() *Window {
     return &state.window;
 }
+
+// TODO: remove these functions
 
 pub fn allocator() Allocator {
     return state.alloc;
@@ -189,32 +192,12 @@ pub fn camera() *Camera {
     return &state.camera;
 }
 
-pub fn userShaders() *StringHashMap(*Shader) {
-    return &state.shaders;
-}
-
 pub fn scene() *Scene {
     return &state.scene;
 }
 
-pub fn loadModel(path: []const u8) *Model {
-    const model = state.arena.allocator().create(Model) catch unreachable;
-    model.* = Model.init(state.alloc, path) catch unreachable;
-    state.models.append(model) catch unreachable;
-    return state.models.items[state.models.items.len - 1];
-}
-
-fn deinitModels() void {
-    for (state.models.items) |model| {
-        model.deinit();
-    }
-}
-
-fn deinitShaders() void {
-    var iter = state.shaders.valueIterator();
-    while (iter.next()) |shader| {
-        shader.*.deinit();
-    }
+pub fn shaders() StringHashMap(res.Shader.Handle).Iterator {
+    return state.shaders.iterator();
 }
 
 pub fn wireframeEnabled() bool {
@@ -227,7 +210,7 @@ fn updateDeltaTime() void {
     state.last_frame_time = current_frame;
 }
 
-fn startFrame() void {
+fn startFrame() Allocator.Error!void {
     const v = state.clear_color.clampedVec3();
     gl.ClearColor(v.x, v.y, v.z, 1);
     gl.Clear(gl.COLOR_BUFFER_BIT);
@@ -236,7 +219,7 @@ fn startFrame() void {
 
     imGuiStartFrame();
     input.startFrame();
-    renderer.startFrame();
+    try renderer.startFrame();
     processInput();
     // scene().skybox_hidden = true;
     // createLayout();
@@ -248,29 +231,29 @@ fn endFrame() void {
     imGuiEndFrame();
 
     state.window.swapBuffers();
+
     _ = state.frame_arena.reset(.retain_capacity);
 }
 
 /// added shaders will be reloaded when 'o' is pressed
-/// they will be deinitalized at engine.deinit by renderer
-/// DON'T deinitialize the shader yourself
-pub fn addShader(name: []const u8, shader: *Shader) void {
-    state.shaders.put(name, shader) catch unreachable;
+pub fn addShader(name: []const u8, handle: res.Shader.Handle) Allocator.Error!void {
+    try state.shaders.putNoClobber(name, handle);
 }
 
-fn update() void {
-    startFrame();
+fn update() !void {
+    try startFrame();
     defer endFrame();
 
-    editor.update();
+    try editor.update();
 
-    state.app.update() catch unreachable;
+    state.app.update() catch |err| {
+        log.err("user update failed {t}", .{err});
+        @panic("user update failed");
+    };
 
-    renderer.render(.{ .render_bounding_boxes = true });
+    try renderer.render();
 
     updateImGui();
-
-    debug.checkGlError();
 }
 
 pub fn run(user_app: *const Application) void {
@@ -279,27 +262,26 @@ pub fn run(user_app: *const Application) void {
     // TODO:
     // add a configuration option per actor for whether an actor created
     // in Application.init should save its data in the save file
-    // editor.loadActorData(
-    //     fs.savePath("save.json"),
-    // ) catch |err| switch (err) {
-    //     error.EmptyFile, error.FileNotFound => {},
-    //     else => unreachable,
-    // };
-    editor.loadLightData(
-        fs.savePath("light_save.json"),
-    ) catch |err| switch (err) {
+    editor.loadActorData(fs.savePath("save.json")) catch |err| switch (err) {
+        error.EmptyFile, error.FileNotFound => {},
+        else => unreachable,
+    };
+    editor.loadLightData(fs.savePath("light_save.json")) catch |err| switch (err) {
         error.EmptyFile, error.FileNotFound => {},
         else => unreachable,
     };
 
-    state.app.init() catch unreachable;
+    state.app.init(&state.resource_pool) catch |err| {
+        log.err("user init failed {t}", .{err});
+        @panic("user init failed");
+    };
 
     while (!state.window.shouldClose()) {
-        update();
+        update() catch unreachable;
     }
 }
 
-fn initAllocator() void {
+fn initAllocators() void {
     state.gpa = .init;
     state.alloc = state.gpa.allocator();
     state.arena = .init(state.alloc);
@@ -309,7 +291,7 @@ fn initAllocator() void {
 fn glfwErrorCallback(
     code: c_int,
     desc: [*c]const u8,
-) callconv(.C) void {
+) callconv(.c) void {
     log.info("GLFW error: {} - {s}", .{ code, desc });
 }
 
@@ -351,8 +333,8 @@ fn initCamera() void {
     state.camera = Camera.init(Vec3.init(0, 1, 0));
 }
 
-fn initScene() void {
-    state.scene = Scene.init(state.alloc);
+fn initScene() Allocator.Error!void {
+    state.scene = try .init(state.alloc);
     state.scene.loadDefaultSkybox();
 }
 
@@ -372,7 +354,7 @@ fn initImGui(init_info: *const EngineInitInfo) void {
     const glsl_version = if (builtin.os.tag == .macos) "#version 410" else "#version 460";
     _ = ig_backend.cImGui_ImplOpenGL3_InitEx(glsl_version);
 
-    ig.init(state.alloc);
+    ig.init();
     ig.setMaterialYouTheme();
 
     // wayland scaling stuff
@@ -447,16 +429,10 @@ fn processInput() void {
     }
     if (input.keyPressed(.o)) {
         log.info("Reloading shaders", .{});
-        text.getShader().reload() catch |err| {
-            log.err(
-                "Failed to reload shader: {s}",
-                .{@errorName(err)},
-            );
-        };
         var iter = state.shaders.iterator();
         while (iter.next()) |kv| {
-            const shader = kv.value_ptr.*;
-            shader.reload() catch |err| {
+            const shader = state.resource_pool.getShader(kv.value_ptr.*).?;
+            shader.reload(state.alloc) catch |err| {
                 const name = kv.key_ptr.*;
                 log.err(
                     "Failed to reload shader {s}: {s}",
