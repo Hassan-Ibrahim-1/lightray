@@ -1,3 +1,11 @@
+figure out the math for the raytracer. don't rush
+write a cpu software raytracer that can make beautiful things
+translate engine.Scene into something easy to raytrace
+parallelize the raytracer on the cpu
+make it run using compute shaders
+being able to do textures at some point would be nice
+maybe use vulkan for hardware raytracing
+
 engine stuff
     - an easy way to move things around
     - compute shaders
@@ -30,6 +38,7 @@ things i want to raytrace:
     a fractal
     glass
     clouds
+    see through jade / porcelain
 
 ------------------------------------------------------------------------------------------------------
 

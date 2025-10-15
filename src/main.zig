@@ -72,17 +72,11 @@ fn update() !void {
             .scale = .fromValue(0.1),
         },
     });
+
     debug.drawCube(.{
         .color = .cyan,
         .transform = .{
             .position = end,
-            .scale = .fromValue(0.1),
-        },
-    });
-    debug.drawCube(.{
-        .color = .magenta,
-        .transform = .{
-            .position = Vec3.init(0, 0, -1),
             .scale = .fromValue(0.1),
         },
     });
