@@ -49,7 +49,7 @@ fn update() !void {
 
     if (hit) |t| {
         const p = mouse_ray.at(t);
-        renderer.debug.drawCube(.{
+        debug.drawCube(.{
             .color = .green,
             .transform = .{
                 .position = p,
