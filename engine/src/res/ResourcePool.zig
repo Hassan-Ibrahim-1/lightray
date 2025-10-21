@@ -28,11 +28,11 @@ vertex_buffers: HashMap(VertexBuffer.Handle, VertexBuffer),
 buffers: HashMap(Buffer.Handle, Buffer),
 
 handles: struct {
-    texture: Texture.Handle = 0,
-    shader: Shader.Handle = 0,
-    model: Model.Handle = 0,
-    vertex_buffer: VertexBuffer.Handle = 0,
-    buffer: Buffer.Handle = 0,
+    texture: usize = 0,
+    shader: usize = 0,
+    model: usize = 0,
+    vertex_buffer: usize = 0,
+    buffer: usize = 0,
 },
 
 free_list_arena: switch (builtin.mode) {
@@ -117,7 +117,7 @@ pub fn createTexture(
     self: *ResourcePool,
 ) Allocator.Error!struct { *Texture, Texture.Handle } {
     defer self.handles.texture += 1;
-    const handle = self.handles.texture;
+    const handle: Texture.Handle = @enumFromInt(self.handles.texture);
 
     // TODO: would getOrPut be better here?
     try self.textures.put(self.alloc, handle, undefined);
@@ -160,7 +160,7 @@ pub fn createShader(
     self: *ResourcePool,
 ) Allocator.Error!struct { *Shader, Shader.Handle } {
     defer self.handles.shader += 1;
-    const handle = self.handles.shader;
+    const handle: Shader.Handle = @enumFromInt(self.handles.shader);
 
     // TODO: would getOrPut be better here?
     try self.shaders.put(self.alloc, handle, undefined);
@@ -207,7 +207,7 @@ pub fn createModel(
     self: *ResourcePool,
 ) Allocator.Error!struct { *Model, Model.Handle } {
     defer self.handles.model += 1;
-    const handle = self.handles.model;
+    const handle: Model.Handle = @enumFromInt(self.handles.model);
 
     // TODO: would getOrPut be better here?
     try self.models.put(self.alloc, handle, undefined);
@@ -250,7 +250,7 @@ pub fn createVertexBuffer(
     self: *ResourcePool,
 ) Allocator.Error!struct { *VertexBuffer, VertexBuffer.Handle } {
     defer self.handles.vertex_buffer += 1;
-    const handle = self.handles.vertex_buffer;
+    const handle: VertexBuffer.Handle = @enumFromInt(self.handles.vertex_buffer);
 
     // TODO: would getOrPut be better here?
     try self.vertex_buffers.put(self.alloc, handle, undefined);
@@ -293,7 +293,7 @@ pub fn createBuffer(
     self: *ResourcePool,
 ) Allocator.Error!struct { *Buffer, Buffer.Handle } {
     defer self.handles.buffer += 1;
-    const handle = self.handles.buffer;
+    const handle: Buffer.Handle = @enumFromInt(self.handles.buffer);
 
     // TODO: would getOrPut be better here?
     try self.buffers.put(self.alloc, handle, undefined);

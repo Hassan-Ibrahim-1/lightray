@@ -13,7 +13,10 @@ const Allocator = std.mem.Allocator;
 
 const ComputeTexture = @This();
 
-pub const Handle = usize;
+pub const Handle = enum(usize) {
+    _,
+    pub const zero: Handle = @enumFromInt(0);
+};
 
 handle: c_uint,
 width: u32,

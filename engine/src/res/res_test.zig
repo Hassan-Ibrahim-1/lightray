@@ -1,7 +1,10 @@
 pub const ResourcePool = @import("ResourcePool.zig");
 
 pub const Mesh = struct {
-    pub const Handle = usize;
+    pub const Handle = enum(usize) {
+        _,
+        pub const zero: Handle = @enumFromInt(0);
+    };
 
     x: u32,
 
@@ -12,7 +15,10 @@ pub const Mesh = struct {
     pub fn deinit(_: Mesh) void {}
 };
 pub const Texture = struct {
-    pub const Handle = usize;
+    pub const Handle = enum(usize) {
+        _,
+        pub const zero: Handle = @enumFromInt(0);
+    };
 
     x: u32,
 
@@ -23,7 +29,10 @@ pub const Texture = struct {
     pub fn deinit(_: Texture) void {}
 };
 pub const Shader = struct {
-    pub const Handle = usize;
+    pub const Handle = enum(usize) {
+        _,
+        pub const zero: Handle = @enumFromInt(0);
+    };
 
     x: u32,
 
@@ -34,7 +43,10 @@ pub const Shader = struct {
     pub fn deinit(_: Shader) void {}
 };
 pub const Model = struct {
-    pub const Handle = usize;
+    pub const Handle = enum(usize) {
+        _,
+        pub const zero: Handle = @enumFromInt(0);
+    };
 
     x: u32,
 
@@ -45,7 +57,10 @@ pub const Model = struct {
     pub fn deinit(_: Model) void {}
 };
 pub const VertexBuffer = struct {
-    pub const Handle = usize;
+    pub const Handle = enum(usize) {
+        _,
+        pub const zero: Handle = @enumFromInt(0);
+    };
 
     x: u32,
 
@@ -56,7 +71,10 @@ pub const VertexBuffer = struct {
     pub fn deinit(_: VertexBuffer) void {}
 };
 pub const ComputeShader = struct {
-    pub const Handle = usize;
+    pub const Handle = enum(usize) {
+        _,
+        pub const zero: Handle = @enumFromInt(0);
+    };
 
     x: u32,
 
@@ -67,7 +85,10 @@ pub const ComputeShader = struct {
     pub fn deinit(_: ComputeShader) void {}
 };
 pub const ComputeTexture = struct {
-    pub const Handle = usize;
+    pub const Handle = enum(usize) {
+        _,
+        pub const zero: Handle = @enumFromInt(0);
+    };
 
     x: u32,
 

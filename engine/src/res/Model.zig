@@ -18,7 +18,10 @@ const c = @cImport({
 
 const Model = @This();
 
-pub const Handle = usize;
+pub const Handle = enum(usize) {
+    _,
+    pub const zero: Handle = @enumFromInt(0);
+};
 
 pub const Error = error{
     FileNotFound,

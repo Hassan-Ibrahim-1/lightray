@@ -17,7 +17,10 @@ const Mat3 = math.Mat3;
 const log = debug.log.scoped(.Shader);
 const Shader = @This();
 
-pub const Handle = usize;
+pub const Handle = enum(usize) {
+    _,
+    pub const zero: Handle = @enumFromInt(0);
+};
 
 pub const Spec = struct {
     // TODO: document what thes fields actually mean, how many bind locations they

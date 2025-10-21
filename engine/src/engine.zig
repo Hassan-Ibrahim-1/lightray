@@ -16,6 +16,7 @@ pub const debug = @import("debug.zig");
 const editor = @import("editor.zig");
 const Fs = @import("Fs.zig");
 pub const ig = @import("imgui.zig");
+pub const Image = @import("Image.zig");
 pub const input = @import("input.zig");
 const light = @import("light.zig");
 pub const PointLight = light.PointLight;
@@ -30,12 +31,12 @@ pub const RenderItem = @import("renderer/RenderItem.zig");
 pub const res = @import("res.zig");
 pub const Scene = @import("Scene.zig");
 pub const Skybox = @import("Skybox.zig");
+pub const trait = @import("trait.zig");
 pub const Transform = @import("Transform.zig");
 pub const utils = @import("utils.zig");
 const Size = utils.Size;
 pub const Vertex = @import("vertex.zig").Vertex;
 pub const Window = @import("Window.zig");
-pub const trait = @import("trait.zig");
 
 pub const glfw = @cImport({
     @cDefine("GLFW_INCLUDE_NONE", "1");

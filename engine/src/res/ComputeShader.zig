@@ -17,7 +17,10 @@ const builtin = @import("builtin");
 const ComputeShader = @This();
 
 pub const Error = Shader.Error;
-pub const Handle = usize;
+pub const Handle = enum(usize) {
+    _,
+    pub const zero: Handle = @enumFromInt(0);
+};
 
 allocator: Allocator,
 /// Don't mutate this

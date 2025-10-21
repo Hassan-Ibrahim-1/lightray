@@ -22,7 +22,10 @@ indices: ArrayList(u32),
 
 const VertexBuffer = @This();
 
-pub const Handle = usize;
+pub const Handle = enum(usize) {
+    _,
+    pub const zero: Handle = @enumFromInt(0);
+};
 
 pub fn init(allocator: Allocator) VertexBuffer {
     return VertexBuffer{

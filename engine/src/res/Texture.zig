@@ -1,4 +1,7 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
+
 const engine = @import("../engine.zig");
 const gl = engine.gl;
 const math = engine.math;
@@ -6,17 +9,19 @@ const assert = engine.debug.assert;
 const log = engine.debug.log;
 const Vec2 = math.Vec2;
 const Vec3 = math.Vec3;
-const ArrayList = std.ArrayList;
 const Vertex = engine.Vertex;
-const Allocator = std.mem.Allocator;
 const cast = engine.cast;
+const trait = engine.trait;
+
 const c = @cImport({
     @cInclude("stb_image.h");
 });
-
 const Texture = @This();
 
-pub const Handle = usize;
+pub const Handle = enum(usize) {
+    _,
+    pub const zero: Handle = @enumFromInt(0);
+};
 
 handle: c_uint,
 width: i32,
@@ -24,6 +29,27 @@ height: i32,
 nr_channels: i32,
 _loaded: bool = false,
 path: []const u8,
+
+pub const Format = enum(u32) {
+    red = gl.RED,
+    rgb = gl.RGB,
+    rgba = gl.RGBA,
+
+    pub fn as(self: Format, T: type) T {
+        comptime std.debug.assert(trait.isInt(T));
+        return @intFromEnum(self);
+    }
+};
+
+pub const Filter = enum(u32) {
+    nearest = gl.NEAREST,
+    linear = gl.LINEAR,
+
+    pub fn as(self: Filter, T: type) T {
+        comptime std.debug.assert(trait.isInt(T));
+        return @intFromEnum(self);
+    }
+};
 
 pub fn init(path: []const u8) Texture {
     c.stbi_set_flip_vertically_on_load(1);

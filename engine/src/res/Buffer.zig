@@ -19,7 +19,10 @@ handle: c_uint,
 item_size: usize,
 capacity: isize,
 
-pub const Handle = usize;
+pub const Handle = enum(usize) {
+    _,
+    pub const zero: Handle = @enumFromInt(0);
+};
 /// where the last attribute for `Vertex` ends
 pub const vertex_attribute_end = 2;
 
