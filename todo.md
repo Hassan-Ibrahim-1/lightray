@@ -6,6 +6,9 @@ make it run using compute shaders
 being able to do textures at some point would be nice
 maybe use vulkan for hardware raytracing
 
+if im acutally serious about graphics i should switch to vulkan
+write after writing the cpu raytracer. do a c rewrite.
+
 engine stuff
     - an easy way to move things around
     - compute shaders
