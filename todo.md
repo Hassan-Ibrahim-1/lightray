@@ -1,3 +1,11 @@
+# NEXT
+render to framebuffer
+how will this work. I don't want the user to have multiple
+render passes that they create manually by renderer functions
+there has to be a better way here. because if i bind a framebuffer
+i'm going to have to do a render pass just for that framebuffer.
+
+
 figure out the math for the raytracer. don't rush
 write a cpu software raytracer that can make beautiful things
 translate engine.Scene into something easy to raytrace

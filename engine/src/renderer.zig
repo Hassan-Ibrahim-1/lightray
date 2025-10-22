@@ -345,6 +345,11 @@ pub fn shaders() *Shaders {
 
 pub fn startFrame() Allocator.Error!void {
     state.render_groups = .empty;
+    const v = comptime Color.from(26).clampedVec3();
+    gl.ClearColor(v.x, v.y, v.z, 1);
+    gl.Clear(gl.COLOR_BUFFER_BIT);
+    gl.Clear(gl.DEPTH_BUFFER_BIT);
+
     debug.startFrame();
 }
 

@@ -96,7 +96,6 @@ const State = struct {
     cursor_enabled: bool = false,
     scene: Scene = undefined,
     imio: *ig_raw.ImGuiIO_t = undefined,
-    clear_color: Color = undefined,
     models: ArrayList(res.Model.Handle) = undefined,
 };
 
@@ -108,7 +107,6 @@ pub fn init(init_info: *const EngineInitInfo) !void {
     try initWindow(init_info);
     initCamera();
     state.shaders = .init(state.arena.allocator());
-    state.clear_color = .from(26);
     try initScene();
     initImGui(init_info);
     state.models = .empty;
@@ -217,10 +215,6 @@ fn updateDeltaTime() void {
 }
 
 fn startFrame() Allocator.Error!void {
-    const v = state.clear_color.clampedVec3();
-    gl.ClearColor(v.x, v.y, v.z, 1);
-    gl.Clear(gl.COLOR_BUFFER_BIT);
-    gl.Clear(gl.DEPTH_BUFFER_BIT);
     updateDeltaTime();
 
     imGuiStartFrame();
@@ -399,7 +393,6 @@ fn updateImGui() void {
         // ig.begin("Hey");
         // _ = ig.dragFloat2("hey", @ptrCast(&f_arr));
         // _ = ig.dragVec2Ex("vec2", &v_test, 0.01, 0, 100);
-        // _ = ig.color3("clear color", &state.clear_color);
         // _ = ig.transform("player", &tf);
         // ig.end();
     }
