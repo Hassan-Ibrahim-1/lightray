@@ -15,9 +15,18 @@ const cube_len: usize = 5000;
 const Vec3 = math.Vec3;
 
 fn init(rp: *res.ResourcePool) !void {
-    _ = rp; // autofix
     const scene = engine.scene();
     scene.skybox_hidden = true;
+
+    const cube = scene.createActor("some cube");
+    try cube.render_item.addMesh(renderer.shapes().cube);
+
+    const t, const handle = try rp.createTexture();
+    log.info("loading texture", .{});
+    t.* = try .init("engine/textures/fractal.jpeg");
+
+    const ri = &cube.render_item;
+    try ri.material.diffuse_textures.append(ri.alloc, handle);
 }
 
 var start: Vec3 = .init(0, 0, -1);

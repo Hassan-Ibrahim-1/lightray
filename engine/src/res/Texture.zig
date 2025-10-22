@@ -12,10 +12,8 @@ const Vec3 = math.Vec3;
 const Vertex = engine.Vertex;
 const cast = engine.cast;
 const trait = engine.trait;
+const Image = engine.Image;
 
-const c = @cImport({
-    @cInclude("stb_image.h");
-});
 const Texture = @This();
 
 pub const Handle = enum(usize) {
@@ -24,9 +22,9 @@ pub const Handle = enum(usize) {
 };
 
 handle: c_uint,
-width: i32,
-height: i32,
-nr_channels: i32,
+width: u32,
+height: u32,
+nr_channels: u32,
 _loaded: bool = false,
 path: []const u8,
 
@@ -51,8 +49,7 @@ pub const Filter = enum(u32) {
     }
 };
 
-pub fn init(path: []const u8) Texture {
-    c.stbi_set_flip_vertically_on_load(1);
+pub fn init(path: []const u8) Image.Error!Texture {
     return loadTexture(path);
 }
 
@@ -63,58 +60,37 @@ pub fn deinit(self: *Texture) void {
     self.* = undefined;
 }
 
-fn loadTexture(path: []const u8) Texture {
-    var texture: Texture = undefined;
-    texture.path = path;
+fn loadTexture(path: []const u8) Image.Error!Texture {
+    var handle: c_uint = undefined;
+    gl.GenTextures(1, @ptrCast(&handle));
+    var image = try Image.fromFile(path);
+    defer image.freeFromFile();
 
-    gl.GenTextures(1, @ptrCast(&texture.handle));
-    const data = c.stbi_load(
-        @ptrCast(path),
-        @ptrCast(&texture.width),
-        @ptrCast(&texture.height),
-        @ptrCast(&texture.nr_channels),
-        0,
-    );
-    defer c.stbi_image_free(data);
-    assert(
-        data != 0,
-        "Bad texture load at path: {s}",
-        .{path},
-    );
-
-    // TODO: gamma correction
-    const format: c_uint = switch (texture.nr_channels) {
-        1 => gl.RED,
-        3 => gl.RGB,
-        4 => gl.RGBA,
-        else => fmt: {
-            log.warn(
-                "Unsupported color channel count {} for path {s}\n defaulting to RGB",
-                .{ texture.nr_channels, path },
-            );
-            break :fmt gl.RGB;
-        },
-    };
-    //
-    texture.bind();
-    defer texture.unbind();
+    gl.BindTexture(gl.TEXTURE_2D, handle);
 
     gl.TexImage2D(
         gl.TEXTURE_2D,
         0,
-        @intCast(format),
-        texture.width,
-        texture.height,
+        @intCast(image.format.as(c_int)),
+        @intCast(image.width),
+        @intCast(image.height),
         0,
-        format,
+        @intCast(image.format.as(c_int)),
         gl.UNSIGNED_BYTE,
-        data,
+        @ptrCast(image.data.ptr),
     );
     gl.GenerateMipmap(gl.TEXTURE_2D);
-    defaultTextureSampling(texture.nr_channels);
+    const channels = image.format.channels();
+    defaultTextureSampling(@intCast(channels));
 
-    texture._loaded = true;
-    return texture;
+    return .{
+        .handle = handle,
+        .width = image.width,
+        .height = image.height,
+        .nr_channels = channels,
+        ._loaded = true,
+        .path = path,
+    };
 }
 
 fn defaultTextureSampling(nr_channels: i32) void {

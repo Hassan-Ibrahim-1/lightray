@@ -33,9 +33,9 @@ pub fn deinit(self: *RenderItem) void {
 
 pub fn addMesh(
     self: *RenderItem,
-    handle: Mesh,
+    mesh: Mesh,
 ) Allocator.Error!void {
-    try self.meshes.append(self.alloc, handle);
+    try self.meshes.append(self.alloc, mesh);
 }
 
 pub fn meshCount(self: *RenderItem) usize {

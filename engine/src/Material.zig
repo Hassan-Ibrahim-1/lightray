@@ -20,6 +20,9 @@ pub fn init() Material {
     };
 }
 
+// NOTE: this is some weird allocation scheme.
+// for now just use the parent RenderItem's allocator.
+
 /// doesn't deallocate texture gpu memory
 pub fn deinit(self: *Material, alloc: Allocator) void {
     self.diffuse_textures.deinit(alloc);

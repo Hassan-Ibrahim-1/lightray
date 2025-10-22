@@ -1,6 +1,7 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
+const builtin = @import("builtin");
 
 const gl = @import("gl");
 
@@ -22,7 +23,6 @@ pub const Handle = enum(usize) {
 
 pub const ColorAttachment = struct {
     handle: c_uint,
-    loaded: bool,
 
     pub fn init(
         spec: *const ColorAttachmentSpec,
@@ -57,13 +57,18 @@ pub const ColorAttachment = struct {
         gl.BindTexture(gl.TEXTURE_2D, 0);
     }
 
+    /// Assumes `self` is bound
     pub fn setImage(
-        self: *ColorAttachment,
-        comptime fmt: Texture.Format,
-        image: Image(fmt),
+        _: *ColorAttachment,
+        image: Image,
     ) void {
-        _ = self; // autofix
-        _ = image; // autofix
+        const width, const height = switch (builtin.os.tag) {
+            .macos => .{ image.width * 2, image.height * 2 },
+            .linux => .{ image.width, image.height },
+        };
+        const format = image.format.as(c_int);
+        const data_type = gl.UNSIGNED_BYTE;
+        gl.TexImage2D(gl.TEXTURE_2D, 0, format, width, height, 0, format, data_type, image.data.ptr);
     }
 };
 
@@ -73,7 +78,7 @@ width: u32,
 height: u32,
 handle: c_uint,
 
-color_attachments: [max_color_attachments]c_uint,
+color_attachments: [max_color_attachments]ColorAttachment,
 /// number of color attachments actually created
 color_attachments_len: u8,
 
@@ -100,7 +105,7 @@ pub fn init(width: u32, height: u32) Framebuffer {
 
 pub fn deinit(self: *Framebuffer) void {
     for (0..self.color_attachments_len) |i| {
-        _ = i; // autofix
+        self.color_attachments[i].deinit();
     }
 
     for (0..self.renderbuffer_attachments_len) |i| {

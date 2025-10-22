@@ -42,9 +42,14 @@ pub const glfw = @cImport({
     @cDefine("GLFW_INCLUDE_NONE", "1");
     @cInclude("GLFW/glfw3.h");
 });
+
 pub const ig_backend = @cImport({
     @cInclude("dcimgui_impl_opengl3.h");
     @cInclude("dcimgui_impl_glfw.h");
+});
+
+pub const stb = @cImport({
+    @cInclude("stb_image.h");
 });
 
 /// use this to get access to engine resources
@@ -287,6 +292,10 @@ fn initAllocators() void {
     state.alloc = state.gpa.allocator();
     state.arena = .init(state.alloc);
     state.frame_arena = .init(state.alloc);
+}
+
+fn initStb() void {
+    stb.stbi_set_flip_vertically_on_load(1);
 }
 
 fn glfwErrorCallback(

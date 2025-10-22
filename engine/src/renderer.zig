@@ -241,15 +241,15 @@ fn initBuffers() Allocator.Error!void {
 
 /// update buffers before rendering
 fn updateBuffers() void {
-    const slice = state.billboards.slice();
-    if (slice.len > 0) {
+    const bb_slice = state.billboards.slice();
+    if (bb_slice.len > 0) {
         const bb = &state.buffers.billboard;
-        if (slice.len != bb.len) {
-            bb.resize(slice.len);
+        if (bb_slice.len != bb.len) {
+            bb.resize(bb_slice.len);
         }
-        bb.setPositions(slice.items(.position));
-        bb.setColors(slice.items(.color));
-        bb.setScales(slice.items(.scale));
+        bb.setPositions(bb_slice.items(.position));
+        bb.setColors(bb_slice.items(.color));
+        bb.setScales(bb_slice.items(.scale));
     }
 }
 
