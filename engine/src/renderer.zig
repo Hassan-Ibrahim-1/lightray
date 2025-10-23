@@ -33,6 +33,7 @@ const Vec2 = math.Vec2;
 const trait = engine.trait;
 pub const Shapes = @import("renderer/Shapes.zig");
 pub const debug = @import("renderer/debug.zig");
+const meta = std.meta;
 
 const log = engine.debug.log.scoped(.renderer);
 // When adding a shader
@@ -45,9 +46,38 @@ pub const Shaders = struct {
     light_mesh: Shader.Handle,
     light_textured_mesh: Shader.Handle,
     skybox: Shader.Handle,
-    wireframe: Shader.Handle,
-    line: Shader.Handle,
     billboard: Shader.Handle,
+
+    pub const ShaderSpec = struct {
+        name: []const u8,
+        spec: Shader.Spec,
+    };
+
+    fn init(
+        alloc: Allocator,
+        rp: *ResourcePool,
+        comptime shader_specs: []const ShaderSpec,
+    ) Allocator.Error!Shaders {
+        comptime std.debug.assert(shader_specs.len == meta.fields(Shaders).len);
+        var ret: Shaders = undefined;
+
+        inline for (shader_specs) |shader| {
+            @field(ret, shader.name) = loadShader(
+                alloc,
+                rp,
+                shader.name,
+                shader.spec,
+            ) catch |err| {
+                if (err == error.OutOfMemory) {
+                    return error.OutOfMemory;
+                }
+                log.err("Failed to load shader '{s}', reason: {t}", .{ shader.name, err });
+                @panic("Failed to load shader");
+            };
+        }
+
+        return ret;
+    }
 };
 
 const Buffers = struct {
@@ -62,8 +92,8 @@ const Buffers = struct {
 
         const Self = @This();
 
-        /// FIXME: why does this take Self as a parameter. it should return Self instead
-        pub fn init(self: *Self, rp: *res.ResourcePool) Allocator.Error!void {
+        pub fn init(rp: *res.ResourcePool) Allocator.Error!Self {
+            var self: Self = undefined;
             self.len = 0;
 
             gl.GenVertexArrays(1, @ptrCast(&self.vao));
@@ -103,6 +133,8 @@ const Buffers = struct {
             scale_buf.bind();
             scale_buf.resize(f32, starting_capacity, .dynamic_draw);
             scale_buf.unbind();
+
+            return self;
         }
 
         pub fn deinit(self: *Self) void {
@@ -190,11 +222,13 @@ pub const RenderGroup = struct {
     }
 };
 
+/// value is how many actors use InstanceInfo
+const RenderGroups = HashMap(RenderGroup, ArrayList(*Actor));
+
 const State = struct {
     alloc: Allocator,
     rp: *ResourcePool,
     shaders: Shaders,
-    camera: *Camera,
     buffers: Buffers,
     fixed_buffer: [1024]u8,
     fba: std.heap.FixedBufferAllocator,
@@ -204,9 +238,11 @@ const State = struct {
     shapes: Shapes,
 
     /// cleared every frame
-    rg_arena: std.heap.ArenaAllocator,
-    // value is how many actors use InstanceInfo
-    render_groups: HashMap(RenderGroup, ArrayList(*Actor)),
+    render_arena: std.heap.ArenaAllocator,
+
+    /// If this is set by the user then this is drawn to the display framebuffer
+    render_texture_handle: ?usize,
+    render_passes: ArrayList(RenderPass),
 };
 
 var state: State = undefined;
@@ -216,15 +252,66 @@ pub fn init(
     frame_arena: Allocator,
     rp: *ResourcePool,
 ) !void {
-    state.alloc = allocator;
-    state.rp = rp;
-    state.fba = .init(&state.fixed_buffer);
-    state.rg_arena = .init(state.alloc);
-    state.shapes = try .init(state.rp);
+    state = .{
+        .alloc = allocator,
+        .rp = rp,
+        .render_arena = .init(state.alloc),
+        .shapes = try .init(state.rp),
+        .render_texture_handle = null,
+        .billboards = .empty,
+        .shaders = try .init(allocator, rp, &.{
+            .{ .name = "billboard", .spec = .none },
+            .{
+                .name = "basic_mesh",
+                .spec = .{
+                    .model = 3,
+                    .inverse_model = null,
+                    .color = 7,
+                    .lighting = null,
+                    .textures = false,
+                },
+            },
+            .{
+                .name = "light_mesh",
+                .spec = .{
+                    .model = 3,
+                    .inverse_model = 7,
+                    .color = 10,
+                    .lighting = 11,
+                    .textures = false,
+                },
+            },
+            .{
+                .name = "basic_textured_mesh",
+                .spec = .{
+                    .model = 3,
+                    .inverse_model = null,
+                    .color = 7,
+                    .lighting = null,
+                    .textures = true,
+                },
+            },
+            .{
+                .name = "light_textured_mesh",
+                .spec = .{
+                    .model = 3,
+                    .inverse_model = 7,
+                    .color = 10,
+                    .lighting = 11,
+                    .textures = true,
+                },
+            },
+            .{ .name = "skybox", .spec = .none },
+        }),
+        .buffers = .{
+            .billboard = try .init(rp),
+        },
+        .fixed_buffer = undefined,
+        .fba = .init(&state.fixed_buffer),
+        .render_passes = .empty,
+    };
 
-    state.billboards = .empty;
-    try initShaders();
-    try initBuffers();
+    // Why?
     gl.PointSize(10);
 
     try debug.init(frame_arena, rp);
@@ -233,10 +320,6 @@ pub fn init(
 pub fn deinit() void {
     deinitBuffers();
     state.billboards.deinit(state.alloc);
-}
-
-fn initBuffers() Allocator.Error!void {
-    try state.buffers.billboard.init(state.rp);
 }
 
 /// update buffers before rendering
@@ -255,69 +338,7 @@ fn updateBuffers() void {
 
 fn deinitBuffers() void {
     state.buffers.billboard.deinit();
-    state.rg_arena.deinit();
-}
-
-fn initShaders() Allocator.Error!void {
-    const shader_specs: []const struct { name: []const u8, spec: Shader.Spec } = &.{
-        .{ .name = "billboard", .spec = .none },
-        .{
-            .name = "basic_mesh",
-            .spec = .{
-                .model = 3,
-                .inverse_model = null,
-                .color = 7,
-                .lighting = null,
-                .textures = false,
-            },
-        },
-        .{
-            .name = "light_mesh",
-            .spec = .{
-                .model = 3,
-                .inverse_model = 7,
-                .color = 10,
-                .lighting = 11,
-                .textures = false,
-            },
-        },
-        .{
-            .name = "basic_textured_mesh",
-            .spec = .{
-                .model = 3,
-                .inverse_model = null,
-                .color = 7,
-                .lighting = null,
-                .textures = true,
-            },
-        },
-        .{
-            .name = "light_textured_mesh",
-            .spec = .{
-                .model = 3,
-                .inverse_model = 7,
-                .color = 10,
-                .lighting = 11,
-                .textures = true,
-            },
-        },
-        .{ .name = "skybox", .spec = .none },
-    };
-
-    inline for (shader_specs) |shader| {
-        @field(state.shaders, shader.name) = loadShader(
-            state.alloc,
-            state.rp,
-            shader.name,
-            shader.spec,
-        ) catch |err| {
-            if (err == error.OutOfMemory) {
-                return error.OutOfMemory;
-            }
-            log.err("Failed to load shader '{s}', reason: {t}", .{ shader.name, err });
-            @panic("Failed to load shader");
-        };
-    }
+    state.render_arena.deinit();
 }
 
 const LoadShaderError = Shader.Error || Allocator.Error;
@@ -344,7 +365,8 @@ pub fn shaders() *Shaders {
 }
 
 pub fn startFrame() Allocator.Error!void {
-    state.render_groups = .empty;
+    state.render_passes = .empty;
+
     const v = comptime Color.from(26).clampedVec3();
     gl.ClearColor(v.x, v.y, v.z, 1);
     gl.Clear(gl.COLOR_BUFFER_BIT);
@@ -355,45 +377,81 @@ pub fn startFrame() Allocator.Error!void {
 
 pub fn endFrame() void {
     state.billboards.clearRetainingCapacity();
-    _ = state.rg_arena.reset(.retain_capacity);
+    _ = state.render_arena.reset(.retain_capacity);
     debug.endFrame();
 }
 
+const Framebuffer = res.Framebuffer;
+
 pub const RenderPass = struct {
+    pub const Spec = packed struct {
+        render_actors: bool,
+        render_billboards: bool,
+        render_debug_shapes: bool,
+        render_skybox: bool,
+    };
+
+    spec: Spec,
     actors: []const Actor,
-    framebuffer: 
+    framebuffer: Framebuffer.Handle,
+    clear_color: Color,
 };
 
-pub fn render() Allocator.Error!void {
-    state.camera = engine.camera();
-
-    const view = state.camera.getViewMatrix();
-    const proj = state.camera.getPerspectiveMatrix();
+pub fn render(camera: *const Camera) Allocator.Error!void {
+    const view = camera.getViewMatrix();
+    const proj = camera.getPerspectiveMatrix();
     setCameraMatrices(&view, &proj);
 
     const scene = engine.scene();
 
-    try buildRenderGroups(scene);
-
+    const scene_render_groups = try buildRenderGroups(
+        state.render_arena.allocator(),
+        scene.actors.entries.items(.value),
+        scene.hasLights(),
+    );
+    debug.uploadDebugShapeData();
     drawLights(scene);
-
     updateBuffers();
-    try renderRenderGroups();
-    renderBillboards();
 
-    try debug.renderDebugShapes(scene, &state.shaders);
+    var render_groups_iter = scene_render_groups.iterator();
+    try renderFrame(
+        scene,
+        null,
+        &render_groups_iter,
+    );
+}
 
-    if (!scene.skybox_hidden) {
-        renderSkybox(&scene.skybox);
+const Scene = engine.Scene;
+
+fn renderFrame(
+    scene: *const Scene,
+    spec: ?RenderPass.Spec,
+    render_groups: *RenderGroups.Iterator,
+) Allocator.Error!void {
+    if (spec) |s| {
+        _ = s; // autofix
+    } else {
+        try renderRenderGroups(render_groups);
+        renderBillboards();
+
+        try debug.renderDebugShapes(&state.shaders);
+
+        if (!scene.skybox_hidden) {
+            renderSkybox(&scene.skybox);
+        }
     }
 }
 
-fn buildRenderGroups(scene: *const engine.Scene) Allocator.Error!void {
-    const alloc = state.rg_arena.allocator();
+/// `alloc` is used to add to `out` render groups
+fn buildRenderGroups(
+    alloc: Allocator,
+    actors: []Actor,
+    has_lights: bool,
+) Allocator.Error!RenderGroups {
+    var out = RenderGroups.empty;
 
-    const actors: []Actor = scene.actors.entries.items(.value);
     for (actors) |*actor| {
-        const shader = findBestShader(scene, &actor.render_item.material);
+        const shader = findBestShader(has_lights, &actor.render_item.material);
         for (actor.render_item.meshes.items) |*mesh| {
             const rg = RenderGroup{
                 .mesh = mesh,
@@ -414,7 +472,7 @@ fn buildRenderGroups(scene: *const engine.Scene) Allocator.Error!void {
                     break :t null;
                 },
             };
-            const gop = try state.render_groups.getOrPut(alloc, rg);
+            const gop = try out.getOrPut(alloc, rg);
             if (!gop.found_existing) {
                 gop.value_ptr.* = .empty;
             }
@@ -422,7 +480,7 @@ fn buildRenderGroups(scene: *const engine.Scene) Allocator.Error!void {
         }
     }
 
-    var iter = state.render_groups.iterator();
+    var iter = out.iterator();
     while (iter.next()) |kv| {
         const rg = kv.key_ptr;
         const rg_actors = kv.value_ptr.items;
@@ -436,6 +494,7 @@ fn buildRenderGroups(scene: *const engine.Scene) Allocator.Error!void {
         rg.buffer = handle;
         try applyShaderSpec(alloc, &spec, rg_actors, buffer);
     }
+    return out;
 }
 
 fn applyShaderSpec(
@@ -545,23 +604,19 @@ fn determineSpecSize(spec: *const Shader.Spec) usize {
     return size;
 }
 
-fn findBestShader(scene: *const engine.Scene, mat: *const Material) Shader.Handle {
+fn findBestShader(has_lights: bool, mat: *const Material) Shader.Handle {
     if (mat.shader) |s| return s;
 
-    if (scene.hasLights()) {
+    if (has_lights) {
         if (mat.diffuse_textures.items.len > 0) {
             return state.shaders.light_textured_mesh;
-        } else {
-            return state.shaders.light_mesh;
         }
-    } else {
-        if (mat.diffuse_textures.items.len > 0) {
-            return state.shaders.basic_textured_mesh;
-        } else {
-            return state.shaders.basic_mesh;
-        }
+        return state.shaders.light_mesh;
     }
-    unreachable;
+    if (mat.diffuse_textures.items.len > 0) {
+        return state.shaders.basic_textured_mesh;
+    }
+    return state.shaders.basic_mesh;
 }
 
 fn setCameraMatrices(view: *const Mat4, proj: *const Mat4) void {
@@ -580,9 +635,8 @@ fn setCameraMatrices(view: *const Mat4, proj: *const Mat4) void {
     }
 }
 
-fn renderRenderGroups() Allocator.Error!void {
-    var iter = state.render_groups.iterator();
-    while (iter.next()) |kv| {
+fn renderRenderGroups(render_groups: *RenderGroups.Iterator) Allocator.Error!void {
+    while (render_groups.next()) |kv| {
         const render_group = kv.key_ptr;
         const mesh_vb = state.rp.getVertexBuffer(
             render_group.mesh.vertex_buffer,
@@ -794,7 +848,7 @@ pub fn renderMesh(draw_mode: Mesh.DrawMode, command: DrawCommand) void {
     }
 }
 
-fn renderSkybox(skybox: *Skybox) void {
+fn renderSkybox(skybox: *const Skybox) void {
     assert(skybox.loaded(), "skybox not loaded", .{});
 
     if (engine.wireframeEnabled()) {
@@ -838,13 +892,6 @@ fn renderSkybox(skybox: *Skybox) void {
 
 pub fn shapes() *Shapes {
     return &state.shapes;
-}
-
-pub fn getCameraMatrices() struct { proj: Mat4, view: Mat4 } {
-    return .{
-        .proj = state.camera.getPerspectiveMatrix(),
-        .view = state.camera.getViewMatrix(),
-    };
 }
 
 fn drawLights(scene: *const engine.Scene) void {
@@ -900,4 +947,13 @@ pub fn drawBillboards(billboards: []const Billboard) void {
     for (billboards) |bb| {
         state.billboards.appendAssumeCapacity(bb);
     }
+}
+
+pub fn addRenderPass(pass: *const RenderPass) Allocator.Error!void {
+    try state.render_passes.append(state.render_arena.allocator(), pass.*);
+}
+
+/// `rt` must be the opengl handle for a texture
+pub fn setRenderTexture(rt: ?usize) void {
+    state.render_texture_handle = rt;
 }

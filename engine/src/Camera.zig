@@ -49,7 +49,7 @@ pub fn init(world_up: Vec3) Camera {
     return camera;
 }
 
-pub fn getViewMatrix(self: *Camera) Mat4 {
+pub fn getViewMatrix(self: *const Camera) Mat4 {
     return Mat4.lookAt(
         self.transform.position,
         self.transform.position.add(self.front),
@@ -64,6 +64,13 @@ pub fn getPerspectiveMatrix(self: *const Camera) Mat4 {
         self.near,
         self.far,
     );
+}
+
+pub fn getMatrices(self: *Camera) struct { proj: Mat4, view: Mat4 } {
+    return .{
+        .proj = self.getPerspectiveMatrix(),
+        .view = self.getViewMatrix(),
+    };
 }
 
 pub fn updateVectors(self: *Camera) void {

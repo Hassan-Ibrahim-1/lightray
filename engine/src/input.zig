@@ -342,7 +342,7 @@ fn computeMouseRay() void {
     const near_clip = Vec4.init(mouse_pos_ndc.x, mouse_pos_ndc.y, -1.0, 1.0);
     const far_clip = Vec4.init(mouse_pos_ndc.x, mouse_pos_ndc.y, 1.0, 1.0);
 
-    const mats = engine.renderer.getCameraMatrices();
+    const mats = camera.getMatrices();
     const inverse_vp = mats.proj.mul(&mats.view).inverse().transpose();
 
     var near_world = inverse_vp.mulVec4(near_clip);

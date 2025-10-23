@@ -251,7 +251,7 @@ fn update() !void {
         @panic("user update failed");
     };
 
-    try renderer.render();
+    try renderer.render(&state.camera);
 
     updateImGui();
 }

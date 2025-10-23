@@ -19,7 +19,7 @@ const log = engine.debug.log.scoped(.@"renderer.debug");
 
 const State = struct {
     rp: *res.ResourcePool,
-    alloc: Allocator,
+    frame_arena: Allocator,
 
     /// cleared every frame
     cubes: ArrayList(CubeBufferData),
@@ -62,7 +62,7 @@ pub fn init(
 
     state = .{
         .rp = rp,
-        .alloc = frame_arena,
+        .frame_arena = frame_arena,
 
         .cubes = .empty,
         .cube_buffer = cube_buf_handle,
@@ -83,11 +83,10 @@ pub fn endFrame() void {
 
 const Scene = engine.Scene;
 
+/// Before calling this call `uploadDebugShapeData`
 pub fn renderDebugShapes(
-    scene: *const Scene,
     shaders: *const renderer.Shaders,
 ) Allocator.Error!void {
-    _ = scene; // autofix
     // TODO: configure lighting data
     const shader = shaders.basic_mesh;
 
@@ -97,14 +96,27 @@ pub fn renderDebugShapes(
 
 const Shader = res.Shader;
 
+pub fn uploadDebugShapeData() void {
+    // Cubes
+    {
+        const instance_count = state.cubes.items.len;
+        if (instance_count == 0) return;
+
+        const buf = state.rp.getBuffer(state.cube_buffer).?;
+        uploadCubeData(buf);
+    }
+    // Arrows
+    {
+        const instance_count = state.arrows.items.len;
+        if (instance_count == 0) return;
+        const buf = state.rp.getBuffer(state.arrow_buffer).?;
+        uploadArrowData(buf);
+    }
+}
+
 fn renderDebugCubes(shader: Shader.Handle) Allocator.Error!void {
     const instance_count = state.cubes.items.len;
-    // log.info("instance_count: {}", .{instance_count});
     if (instance_count == 0) return;
-
-    const vb = state.rp.getVertexBuffer(state.shapes.cube.vertex_buffer).?;
-    const buf = state.rp.getBuffer(state.cube_buffer).?;
-    uploadCubeData(buf);
 
     const render_group: RenderGroup = .{
         .shader = shader,
@@ -113,6 +125,8 @@ fn renderDebugCubes(shader: Shader.Handle) Allocator.Error!void {
         .diffuse_texture = null,
         .specular_texture = null,
     };
+
+    const vb = state.rp.getVertexBuffer(state.shapes.cube.vertex_buffer).?;
 
     try renderer.renderRenderGroup(
         &render_group,
@@ -123,12 +137,8 @@ fn renderDebugCubes(shader: Shader.Handle) Allocator.Error!void {
 
 fn renderDebugArrows(shader: Shader.Handle) Allocator.Error!void {
     const instance_count = state.arrows.items.len;
-    // log.info("instance_count: {}", .{instance_count});
     if (instance_count == 0) return;
-
     const vb = state.rp.getVertexBuffer(state.shapes.arrow.vertex_buffer).?;
-    const buf = state.rp.getBuffer(state.arrow_buffer).?;
-    uploadArrowData(buf);
 
     const render_group: RenderGroup = .{
         .shader = shader,
@@ -180,14 +190,14 @@ pub const ArrowBufferData = extern struct {
 };
 
 pub fn drawCube(spec: DrawCubeSpec) void {
-    state.cubes.append(state.alloc, .{
+    state.cubes.append(state.frame_arena, .{
         .model = spec.transform.mat4(),
         .color = spec.color.clampedVec3(),
     }) catch unreachable;
 }
 
 pub fn drawCubes(specs: []const DrawCubeSpec) void {
-    state.cubes.ensureUnusedCapacity(state.alloc, specs.len) catch unreachable;
+    state.cubes.ensureUnusedCapacity(state.frame_arena, specs.len) catch unreachable;
     for (specs) |spec| {
         drawCube(spec);
     }
@@ -217,14 +227,14 @@ pub fn drawArrow(spec: DrawArrowSpec) void {
         },
     };
 
-    state.arrows.append(state.alloc, .{
+    state.arrows.append(state.frame_arena, .{
         .model = tf.mat4(),
         .color = spec.color.clampedVec3(),
     }) catch unreachable;
 }
 
 pub fn drawArrows(specs: []const DrawArrowSpec) void {
-    state.arrows.ensureUnusedCapacity(state.alloc, specs.len) catch unreachable;
+    state.arrows.ensureUnusedCapacity(state.frame_arena, specs.len) catch unreachable;
     for (specs) |spec| {
         drawArrow(spec);
     }
