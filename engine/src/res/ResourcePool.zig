@@ -17,6 +17,7 @@ const VertexBuffer = res.VertexBuffer;
 const ComputeShader = res.ComputeShader;
 const ComputeTexture = res.ComputeTexture;
 const Buffer = res.Buffer;
+const Framebuffer = res.Framebuffer;
 
 const log = std.log.scoped(.s);
 
@@ -26,6 +27,7 @@ shaders: HashMap(Shader.Handle, Shader),
 models: HashMap(Model.Handle, Model),
 vertex_buffers: HashMap(VertexBuffer.Handle, VertexBuffer),
 buffers: HashMap(Buffer.Handle, Buffer),
+framebuffers: HashMap(Framebuffer.Handle, Buffer),
 
 handles: struct {
     texture: usize = 0,
@@ -33,6 +35,7 @@ handles: struct {
     model: usize = 0,
     vertex_buffer: usize = 0,
     buffer: usize = 0,
+    framebuffer: usize = 0,
 },
 
 free_list_arena: switch (builtin.mode) {
@@ -47,6 +50,7 @@ free_list: switch (builtin.mode) {
         models: ArrayList(Model.Handle) = .empty,
         vertex_buffers: ArrayList(VertexBuffer.Handle) = .empty,
         buffers: ArrayList(Buffer.Handle) = .empty,
+        framebuffers: ArrayList(Buffer.Handle) = .empty,
     },
     else => void,
 },
@@ -61,6 +65,7 @@ pub fn init(alloc: Allocator) ResourcePool {
         .models = .empty,
         .vertex_buffers = .empty,
         .buffers = .empty,
+        .framebuffers = .empty,
         .handles = .{},
 
         .free_list = switch (builtin.mode) {
@@ -104,6 +109,12 @@ pub fn deinit(self: *ResourcePool) void {
         b.deinit();
     }
     self.buffers.deinit(self.alloc);
+
+    var frame_iter = self.framebuffers.valueIterator();
+    while (frame_iter.next()) |b| {
+        b.deinit();
+    }
+    self.framebuffers.deinit(self.alloc);
 
     switch (builtin.mode) {
         .Debug, .ReleaseSafe => self.free_list_arena.deinit(),
@@ -330,6 +341,49 @@ pub fn getBuffer(self: *ResourcePool, handle: Buffer.Handle) ?*Buffer {
     }
 
     return self.buffers.getPtr(handle);
+}
+
+pub fn createFramebuffer(
+    self: *ResourcePool,
+) Allocator.Error!struct { *Framebuffer, Framebuffer.Handle } {
+    defer self.handles.buffer += 1;
+    const handle: Framebuffer.Handle = @enumFromInt(self.handles.framebuffer);
+
+    // TODO: would getOrPut be better here?
+    try self.framebuffers.put(self.alloc, handle, undefined);
+    const m = self.framebuffers.getPtr(handle).?;
+    return .{ m, handle };
+}
+
+pub fn freeFramebuffer(self: *ResourcePool, handle: Framebuffer.Handle) void {
+    switch (builtin.mode) {
+        .Debug, .ReleaseSafe => {
+            if (mem.indexOfScalar(Framebuffer.Handle, self.free_list.framebuffers.items, handle) != null) {
+                log.err("Double free detected for framebuffer of handle {}", .{handle});
+                @panic("Double free");
+            }
+        },
+        else => {},
+    }
+
+    self.free_list.framebuffers.append(self.free_list_arena.allocator(), handle) catch unreachable;
+
+    self.framebuffers.getPtr(handle).?.deinit();
+    std.debug.assert(self.framebuffers.remove(handle));
+}
+
+pub fn getFramebuffer(self: *ResourcePool, handle: Framebuffer.Handle) ?*Framebuffer {
+    switch (builtin.mode) {
+        .Debug, .ReleaseSafe => {
+            if (mem.indexOfScalar(Framebuffer.Handle, self.free_list.framebuffers.items, handle) != null) {
+                log.err("Use after free detected for framebuffer of handle {}", .{handle});
+                @panic("Use after free");
+            }
+        },
+        else => {},
+    }
+
+    return self.framebuffers.getPtr(handle);
 }
 
 test "ResourcePool.createTexture" {

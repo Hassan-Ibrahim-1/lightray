@@ -359,6 +359,11 @@ pub fn endFrame() void {
     debug.endFrame();
 }
 
+pub const RenderPass = struct {
+    actors: []const Actor,
+    framebuffer: 
+};
+
 pub fn render() Allocator.Error!void {
     state.camera = engine.camera();
 

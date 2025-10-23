@@ -7,3 +7,4 @@ pub const VertexBuffer = @import("res/VertexBuffer.zig");
 pub const Buffer = @import("res/Buffer.zig");
 pub const ComputeShader = @import("res/ComputeShader.zig");
 pub const ComputeTexture = @import("res/ComputeTexture.zig");
+pub const Framebuffer = @import("res/Framebuffer.zig");
