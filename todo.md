@@ -1,9 +1,7 @@
 # NEXT
-render to framebuffer
-how will this work. I don't want the user to have multiple
-render passes that they create manually by renderer functions
-there has to be a better way here. because if i bind a framebuffer
-i'm going to have to do a render pass just for that framebuffer.
+just need to figure out render texture stuff and how to draw a texture
+to display framebuffer. also need to just implement renderpasses.
+should be simple hopefully.
 
 leave the engine running for a bit, i think there's a leak?
 render times increase as it keeps going. i have no idea what that means.
