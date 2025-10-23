@@ -32,9 +32,9 @@ pub const ColorAttachment = struct {
     pub fn init(
         spec: *const Spec,
     ) ColorAttachment {
-        var attachment_handle: c_uint = undefined;
-        gl.GenTextures(1, @ptrCast(&attachment_handle));
-        gl.BindTexture(gl.TEXTURE_2D, attachment_handle);
+        var handle: c_uint = undefined;
+        gl.GenTextures(1, @ptrCast(&handle));
+        gl.BindTexture(gl.TEXTURE_2D, handle);
 
         gl.TexParameteri(
             gl.TEXTURE_2D,
@@ -47,6 +47,10 @@ pub const ColorAttachment = struct {
             gl.TEXTURE_MAG_FILTER,
             spec.magnification_filter.as(c_int),
         );
+
+        return .{
+            .handle = handle,
+        };
     }
 
     pub fn deinit(self: *ColorAttachment) void {
@@ -70,10 +74,21 @@ pub const ColorAttachment = struct {
         const width, const height = switch (builtin.os.tag) {
             .macos => .{ image.width * 2, image.height * 2 },
             .linux => .{ image.width, image.height },
+            else => |tag| @compileError(@tagName(tag) ++ " os not supported"),
         };
-        const format = image.format.as(c_int);
+        const format = image.format.as(c_uint);
         const data_type = gl.UNSIGNED_BYTE;
-        gl.TexImage2D(gl.TEXTURE_2D, 0, format, width, height, 0, format, data_type, image.data.ptr);
+        gl.TexImage2D(
+            gl.TEXTURE_2D,
+            0,
+            @intCast(format),
+            @intCast(width),
+            @intCast(height),
+            0,
+            format,
+            data_type,
+            image.data.ptr,
+        );
     }
 };
 
@@ -96,8 +111,18 @@ pub const RenderbufferAttachment = struct {
         const w, const h = switch (builtin.os.tag) {
             .macos => .{ width * 2, height * 2 },
             .linux => .{ width, height },
+            else => |tag| @compileError(@tagName(tag) ++ " os not supported"),
         };
-        gl.RenderbufferStorage(gl.RENDERBUFFER, format.as(c_uint), w, h);
+        gl.RenderbufferStorage(
+            gl.RENDERBUFFER,
+            format.as(c_uint),
+            @intCast(w),
+            @intCast(h),
+        );
+
+        return .{
+            .handle = handle,
+        };
     }
 
     pub fn deinit(self: *RenderbufferAttachment) void {
@@ -153,7 +178,7 @@ pub fn deinit(self: *Framebuffer) void {
         self.renderbuffer_attachments[i].deinit();
     }
 
-    gl.DeleteFramebuffers(1, self.handle);
+    gl.DeleteFramebuffers(1, @ptrCast(&self.handle));
     self.* = undefined;
 }
 
@@ -166,6 +191,7 @@ pub fn unbind(_: *const Framebuffer) void {
 }
 
 const Texture = res.Texture;
+const cast = engine.cast;
 
 /// Assumes that `self` is bound.
 pub fn createColorAttachment(
@@ -178,7 +204,7 @@ pub fn createColorAttachment(
 
     gl.FramebufferTexture2D(
         gl.FRAMEBUFFER,
-        gl.COLOR_ATTACHMENT0 + self.color_attachments_len,
+        gl.COLOR_ATTACHMENT0 + cast.as(c_uint, self.color_attachments_len),
         gl.TEXTURE_2D,
         ca.handle,
         0,
@@ -204,4 +230,9 @@ pub fn createRenderbufferAttachment(
     );
 
     return rba;
+}
+
+/// `self` must be bound
+pub fn isComplete(_: *const Framebuffer) bool {
+    return gl.CheckFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE;
 }

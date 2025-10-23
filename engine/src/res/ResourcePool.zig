@@ -27,7 +27,7 @@ shaders: HashMap(Shader.Handle, Shader),
 models: HashMap(Model.Handle, Model),
 vertex_buffers: HashMap(VertexBuffer.Handle, VertexBuffer),
 buffers: HashMap(Buffer.Handle, Buffer),
-framebuffers: HashMap(Framebuffer.Handle, Buffer),
+framebuffers: HashMap(Framebuffer.Handle, Framebuffer),
 
 handles: struct {
     texture: usize = 0,
@@ -346,7 +346,7 @@ pub fn getBuffer(self: *ResourcePool, handle: Buffer.Handle) ?*Buffer {
 pub fn createFramebuffer(
     self: *ResourcePool,
 ) Allocator.Error!struct { *Framebuffer, Framebuffer.Handle } {
-    defer self.handles.buffer += 1;
+    defer self.handles.framebuffer += 1;
     const handle: Framebuffer.Handle = @enumFromInt(self.handles.framebuffer);
 
     // TODO: would getOrPut be better here?

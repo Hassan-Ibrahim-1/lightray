@@ -25,7 +25,7 @@ handle: c_uint,
 width: u32,
 height: u32,
 nr_channels: u32,
-_loaded: bool = false,
+loaded: bool,
 path: []const u8,
 
 pub const Format = enum(u32) {
@@ -45,7 +45,7 @@ pub const Filter = enum(u32) {
 
     pub fn as(self: Filter, T: type) T {
         comptime std.debug.assert(trait.isInt(T));
-        return @intFromEnum(self);
+        return @intCast(@intFromEnum(self));
     }
 };
 
@@ -54,9 +54,9 @@ pub fn init(path: []const u8) Image.Error!Texture {
 }
 
 pub fn deinit(self: *Texture) void {
-    assert(self._loaded, "Tried to deinit a texture that isn't loaded", .{});
+    assert(self.loaded, "Tried to deinit a texture that isn't loaded", .{});
     gl.DeleteTextures(1, @ptrCast(&self.handle));
-    self._loaded = false;
+    self.loaded = false;
     self.* = undefined;
 }
 
@@ -88,7 +88,7 @@ fn loadTexture(path: []const u8) Image.Error!Texture {
         .width = image.width,
         .height = image.height,
         .nr_channels = channels,
-        ._loaded = true,
+        .loaded = true,
         .path = path,
     };
 }
@@ -117,8 +117,4 @@ pub fn bindSlot(self: *const Texture, id: usize) void {
 pub fn unbind(self: *const Texture) void {
     _ = self; // autofix
     gl.BindTexture(gl.TEXTURE_2D, 0);
-}
-
-pub fn loaded(self: *Texture) bool {
-    return self._loaded;
 }

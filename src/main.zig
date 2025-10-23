@@ -9,24 +9,56 @@ const ig = engine.ig;
 const input = engine.input;
 const renderer = engine.renderer;
 const debug = renderer.debug;
+const Framebuffer = res.Framebuffer;
 
 const cube_len: usize = 5000;
 
 const Vec3 = math.Vec3;
 
+var fb_handle: Framebuffer.Handle = undefined;
+var fb_image: engine.Image = undefined;
+
 fn init(rp: *res.ResourcePool) !void {
     const scene = engine.scene();
     scene.skybox_hidden = true;
 
+    const fb, fb_handle = try rp.createFramebuffer();
+    const window_size = engine.windowSize();
+    fb.* = .init(window_size.width, window_size.height);
+
+    fb.bind();
+    defer fb.unbind();
+
+    const ca = fb.createColorAttachment(&.{
+        .minimum_filter = .linear,
+        .magnification_filter = .linear,
+    });
+
+    fb_image = try .fromFile("engine/textures/flow_map.png");
+
+    ca.setImage(fb_image);
+
+    _ = fb.createRenderbufferAttachment(.depth24_stencil8);
+
+    std.debug.assert(fb.isComplete());
+
+    renderer.setRenderTexture(ca.handle);
+
     const cube = scene.createActor("some cube");
     try cube.render_item.addMesh(renderer.shapes().cube);
 
-    const t, const handle = try rp.createTexture();
-    log.info("loading texture", .{});
-    t.* = try .init("engine/textures/fractal.jpeg");
+    const t, const t_handle = try rp.createTexture();
+    t.* = .{
+        .handle = ca.handle,
+        .loaded = true,
+        .width = fb_image.width,
+        .height = fb_image.height,
+        .nr_channels = fb_image.format.channels(),
+        .path = "NO PATH",
+    };
 
     const ri = &cube.render_item;
-    try ri.material.diffuse_textures.append(ri.alloc, handle);
+    try ri.material.diffuse_textures.append(ri.alloc, t_handle);
 }
 
 var start: Vec3 = .init(0, 0, -1);

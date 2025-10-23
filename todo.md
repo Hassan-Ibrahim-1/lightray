@@ -5,7 +5,8 @@ render passes that they create manually by renderer functions
 there has to be a better way here. because if i bind a framebuffer
 i'm going to have to do a render pass just for that framebuffer.
 
-leave the engine for a bit, i think there's a leak?
+leave the engine running for a bit, i think there's a leak?
+render times increase as it keeps going. i have no idea what that means.
 
 figure out the math for the raytracer. don't rush
 write a cpu software raytracer that can make beautiful things

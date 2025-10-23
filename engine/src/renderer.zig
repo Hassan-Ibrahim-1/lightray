@@ -413,6 +413,10 @@ pub fn render(camera: *const Camera) Allocator.Error!void {
     drawLights(scene);
     updateBuffers();
 
+    // if (state.render_texture_handle) |rt| {
+    //     _ = rt; // autofix
+    // }
+
     var render_groups_iter = scene_render_groups.iterator();
     try renderFrame(
         scene,
