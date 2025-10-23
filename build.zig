@@ -25,10 +25,16 @@ pub fn build(b: *std.Build) void {
         },
     );
 
+    const use_llvm = b.option(
+        bool,
+        "llvm",
+        "force compilation using llvm",
+    ) orelse true;
+
     const exe = b.addExecutable(.{
         .name = "linalg",
         .root_module = mod,
-        .use_llvm = true,
+        .use_llvm = use_llvm,
     });
 
     b.installArtifact(exe);
