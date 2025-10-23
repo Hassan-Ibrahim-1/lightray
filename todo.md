@@ -6,6 +6,10 @@ should be simple hopefully.
 leave the engine running for a bit, i think there's a leak?
 render times increase as it keeps going. i have no idea what that means.
 
+framebuffer texture broken on macos
+
+----------------------------------------------------------------------------------------------------------------
+
 figure out the math for the raytracer. don't rush
 write a cpu software raytracer that can make beautiful things
 translate engine.Scene into something easy to raytrace
