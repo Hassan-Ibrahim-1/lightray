@@ -50,7 +50,7 @@ free_list: switch (builtin.mode) {
         models: ArrayList(Model.Handle) = .empty,
         vertex_buffers: ArrayList(VertexBuffer.Handle) = .empty,
         buffers: ArrayList(Buffer.Handle) = .empty,
-        framebuffers: ArrayList(Buffer.Handle) = .empty,
+        framebuffers: ArrayList(Framebuffer.Handle) = .empty,
     },
     else => void,
 },

@@ -34,7 +34,7 @@ fn init(rp: *res.ResourcePool) !void {
         .magnification_filter = .linear,
     });
 
-    fb_image = try .fromFile("engine/textures/flow_map.png");
+    fb_image = try .fromFile("engine/textures/skybox/front.jpg");
 
     ca.setImage(fb_image);
 
@@ -44,21 +44,22 @@ fn init(rp: *res.ResourcePool) !void {
 
     renderer.setRenderTexture(ca.handle);
 
-    const cube = scene.createActor("some cube");
-    try cube.render_item.addMesh(renderer.shapes().cube);
+    // const cube = scene.createActor("some cube");
+    // try cube.render_item.addMesh(renderer.shapes().cube);
 
-    const t, const t_handle = try rp.createTexture();
-    t.* = .{
-        .handle = ca.handle,
-        .loaded = true,
-        .width = fb_image.width,
-        .height = fb_image.height,
-        .nr_channels = fb_image.format.channels(),
-        .path = "NO PATH",
-    };
+    // const t, const t_handle = try rp.createTexture();
+    // t.* = .{
+    //     .handle = ca.handle,
+    //     .loaded = true,
+    //     .width = fb_image.width,
+    //     .height = fb_image.height,
+    //     .nr_channels = fb_image.format.channels(),
+    //     .path = "NO PATH",
+    // };
 
-    const ri = &cube.render_item;
-    try ri.material.diffuse_textures.append(ri.alloc, t_handle);
+    // const ri = &cube.render_item;
+    // try ri.material.diffuse_textures.append(ri.alloc, t_handle);
+    renderer.setRenderTexture(ca.handle);
 }
 
 var start: Vec3 = .init(0, 0, -1);

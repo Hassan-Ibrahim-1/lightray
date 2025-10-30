@@ -409,13 +409,13 @@ pub fn imGuiIo() *ig_raw.ImGuiIO_t {
     return state.imio;
 }
 
-fn enableWireframe() void {
+pub fn enableWireframe() void {
     if (state.wireframe_enabled) return;
     gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
     state.wireframe_enabled = true;
 }
 
-fn disableWireframe() void {
+pub fn disableWireframe() void {
     if (!state.wireframe_enabled) return;
     gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL);
     state.wireframe_enabled = false;

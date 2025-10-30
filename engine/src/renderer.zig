@@ -47,6 +47,7 @@ pub const Shaders = struct {
     light_textured_mesh: Shader.Handle,
     skybox: Shader.Handle,
     billboard: Shader.Handle,
+    screen: Shader.Handle,
 
     pub const ShaderSpec = struct {
         name: []const u8,
@@ -260,7 +261,6 @@ pub fn init(
         .render_texture_handle = null,
         .billboards = .empty,
         .shaders = try .init(allocator, rp, &.{
-            .{ .name = "billboard", .spec = .none },
             .{
                 .name = "basic_mesh",
                 .spec = .{
@@ -302,6 +302,8 @@ pub fn init(
                 },
             },
             .{ .name = "skybox", .spec = .none },
+            .{ .name = "screen", .spec = .none },
+            .{ .name = "billboard", .spec = .none },
         }),
         .buffers = .{
             .billboard = try .init(rp),
@@ -392,7 +394,7 @@ pub const RenderPass = struct {
     };
 
     spec: Spec,
-    actors: []const Actor,
+    actors: []Actor,
     framebuffer: Framebuffer.Handle,
     clear_color: Color,
 };
@@ -404,25 +406,64 @@ pub fn render(camera: *const Camera) Allocator.Error!void {
 
     const scene = engine.scene();
 
-    const scene_render_groups = try buildRenderGroups(
-        state.render_arena.allocator(),
-        scene.actors.entries.items(.value),
-        scene.hasLights(),
-    );
     debug.uploadDebugShapeData();
     drawLights(scene);
     updateBuffers();
 
-    // if (state.render_texture_handle) |rt| {
-    //     _ = rt; // autofix
-    // }
+    const alloc = state.render_arena.allocator();
+    for (state.render_passes.items) |*pass| {
+        const fb = state.rp.getFramebuffer(pass.framebuffer).?;
+        fb.bind();
+        defer fb.unbind();
 
-    var render_groups_iter = scene_render_groups.iterator();
-    try renderFrame(
-        scene,
-        null,
-        &render_groups_iter,
-    );
+        var render_groups = try buildRenderGroups(
+            alloc,
+            pass.actors,
+            scene.hasLights(),
+        );
+        defer render_groups.deinit(alloc);
+        var render_groups_iter = render_groups.iterator();
+
+        try renderFrame(
+            scene,
+            null,
+            &render_groups_iter,
+        );
+    }
+
+    if (state.render_texture_handle) |render_texture_handle| {
+        engine.disableWireframe();
+        defer engine.enableWireframe();
+
+        gl.ActiveTexture(gl.TEXTURE0);
+        gl.BindTexture(gl.TEXTURE_2D, @intCast(render_texture_handle));
+        const shader = state.rp.getShader(state.shaders.screen).?;
+
+        shader.use();
+        shader.setSampler("screen_texture", 0);
+        const screen_mesh = state.shapes.screen;
+        const vb = state.rp.getVertexBuffer(screen_mesh.vertex_buffer).?;
+
+        vb.bind();
+        renderMesh(screen_mesh.draw_mode, .{
+            .draw_elements = .{
+                .index_count = vb.indices.items.len,
+            },
+        });
+    } else {
+        var scene_render_groups = try buildRenderGroups(
+            alloc,
+            scene.actors.entries.items(.value),
+            scene.hasLights(),
+        );
+        defer scene_render_groups.deinit(alloc);
+        var render_groups_iter = scene_render_groups.iterator();
+        try renderFrame(
+            scene,
+            null,
+            &render_groups_iter,
+        );
+    }
 }
 
 const Scene = engine.Scene;

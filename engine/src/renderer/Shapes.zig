@@ -15,12 +15,14 @@ const Shapes = @This();
 rect: Mesh,
 cube: Mesh,
 arrow: Mesh,
+screen: Mesh,
 
 pub fn init(rp: *ResourcePool) Model.LoadMeshError!Shapes {
     return .{
         .rect = try createRectMesh(rp),
         .cube = try createCubeMesh(rp),
         .arrow = try createArrowMesh(rp),
+        .screen = try createScreenMesh(rp),
     };
 }
 
@@ -31,6 +33,29 @@ fn createRectMesh(rp: *ResourcePool) Allocator.Error!Mesh {
         Vertex.init(Vec3.init(0.5, -0.5, 0), normal, Vec2.init(1, 0)),
         Vertex.init(Vec3.init(-0.5, -0.5, 0), normal, Vec2.init(0, 0)),
         Vertex.init(Vec3.init(-0.5, 0.5, 0), normal, Vec2.init(0, 1)),
+    };
+
+    const indices = [_]u32{
+        0, 1, 3,
+        1, 2, 3,
+    };
+
+    const vb, const vb_handle = try rp.createVertexBuffer();
+    vb.* = .init(rp.alloc);
+    try vb.vertices.appendSlice(vb.alloc, &vertices);
+    try vb.indices.appendSlice(vb.alloc, &indices);
+    vb.sendData();
+
+    return Mesh.init(vb_handle, vb.vertices.items);
+}
+
+fn createScreenMesh(rp: *ResourcePool) Allocator.Error!Mesh {
+    const normal = Vec3.init(0, 0, 1);
+    const vertices = [_]Vertex{
+        Vertex.init(Vec3.init(1.0, 1.0, 0), normal, Vec2.init(1, 1)),
+        Vertex.init(Vec3.init(1.0, -1.0, 0), normal, Vec2.init(1, 0)),
+        Vertex.init(Vec3.init(-1.0, -1.0, 0), normal, Vec2.init(0, 0)),
+        Vertex.init(Vec3.init(-1.0, 1.0, 0), normal, Vec2.init(0, 1)),
     };
 
     const indices = [_]u32{
