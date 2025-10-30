@@ -26,7 +26,7 @@ var state: State = undefined;
 
 fn init(rp: *res.ResourcePool) !void {
     const scene = engine.scene();
-    scene.skybox_hidden = true;
+    // scene.skybox_hidden = true;
 
     const fb, fb_handle = try rp.createFramebuffer();
     const window_size = engine.windowSize();
@@ -48,11 +48,18 @@ fn init(rp: *res.ResourcePool) !void {
     renderer.setRenderTexture(ca.handle);
 
     state.render_pass = .{
-        .spec = .all,
+        .spec = .{
+            .render_debug_shapes = true,
+            .render_billboards = true,
+            .render_skybox = true,
+        },
         .actors = undefined,
         .framebuffer = fb_handle,
         .clear_color = .from(26),
     };
+
+    const cube = scene.createActor("cube");
+    try cube.render_item.addMesh(renderer.shapes().cube);
 }
 
 var start: Vec3 = .init(0, 0, -1);
