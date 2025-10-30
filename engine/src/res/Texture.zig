@@ -28,17 +28,6 @@ nr_channels: u32,
 loaded: bool,
 path: []const u8,
 
-pub const Format = enum(u32) {
-    red = gl.RED,
-    rgb = gl.RGB,
-    rgba = gl.RGBA,
-
-    pub fn as(self: Format, T: type) T {
-        comptime std.debug.assert(trait.isInt(T));
-        return @intFromEnum(self);
-    }
-};
-
 pub const Filter = enum(u32) {
     nearest = gl.NEAREST,
     linear = gl.LINEAR,

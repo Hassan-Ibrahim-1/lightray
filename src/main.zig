@@ -12,6 +12,7 @@ const debug = renderer.debug;
 const Framebuffer = res.Framebuffer;
 const RenderPass = renderer.RenderPass;
 const Vec3 = math.Vec3;
+const raytracer = @import("raytracer.zig");
 
 const log = engine.debug.log.scoped(.main);
 const cube_len: usize = 5000;
@@ -19,13 +20,9 @@ const cube_len: usize = 5000;
 var fb_handle: Framebuffer.Handle = undefined;
 var fb_image: engine.Image = undefined;
 
-const State = struct {
-    render_pass: RenderPass,
-};
-var state: State = undefined;
-
 fn init(rp: *res.ResourcePool) !void {
     const scene = engine.scene();
+    _ = scene; // autofix
     // scene.skybox_hidden = true;
 
     const fb, fb_handle = try rp.createFramebuffer();
@@ -39,27 +36,19 @@ fn init(rp: *res.ResourcePool) !void {
         .minimum_filter = .linear,
         .magnification_filter = .linear,
     });
-    ca.setEmptyImage(window_size.width, window_size.height, .rgba);
+
+    const image = try raytracer.raytrace(
+        engine.arena(),
+        .{ .width = 1280, .height = 720 },
+    );
+
+    ca.setImage(image);
 
     _ = fb.createRenderbufferAttachment(.depth24_stencil8);
 
     std.debug.assert(fb.isComplete());
 
     renderer.setRenderTexture(ca.handle);
-
-    state.render_pass = .{
-        .spec = .{
-            .render_debug_shapes = true,
-            .render_billboards = true,
-            .render_skybox = true,
-        },
-        .actors = undefined,
-        .framebuffer = fb_handle,
-        .clear_color = .from(26),
-    };
-
-    const cube = scene.createActor("cube");
-    try cube.render_item.addMesh(renderer.shapes().cube);
 }
 
 var start: Vec3 = .init(0, 0, -1);
@@ -71,10 +60,6 @@ fn update() !void {
     const aabb = renderer.shapes().cube.aabb;
 
     const hit = mouse_ray.getIntersection(aabb);
-
-    const scene = engine.scene();
-    state.render_pass.actors = scene.actors.values();
-    try renderer.addRenderPass(&state.render_pass);
 
     if (engine.cursorEnabled()) {
         ig.begin("hm");
