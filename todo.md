@@ -1,8 +1,4 @@
 # NEXT
-just need to figure out render texture stuff and how to draw a texture
-to display framebuffer. also need to just implement renderpasses.
-should be simple hopefully.
-
 leave the engine running for a bit, i think there's a leak?
 render times increase as it keeps going. i have no idea what that means.
 
