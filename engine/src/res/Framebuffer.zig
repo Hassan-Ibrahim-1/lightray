@@ -90,6 +90,27 @@ pub const ColorAttachment = struct {
             image.data.ptr,
         );
     }
+
+    pub fn setEmptyImage(_: *ColorAttachment, w: u32, h: u32, fmt: Texture.Format) void {
+        const width, const height = switch (builtin.os.tag) {
+            .macos => .{ w * 2, h * 2 },
+            .linux => .{ w, h },
+            else => |tag| @compileError(@tagName(tag) ++ " os not supported"),
+        };
+        const format = fmt.as(c_uint);
+        const data_type = gl.UNSIGNED_BYTE;
+        gl.TexImage2D(
+            gl.TEXTURE_2D,
+            0,
+            @intCast(format),
+            @intCast(width),
+            @intCast(height),
+            0,
+            format,
+            data_type,
+            null,
+        );
+    }
 };
 
 pub const RenderbufferAttachment = struct {

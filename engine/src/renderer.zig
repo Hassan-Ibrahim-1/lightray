@@ -371,8 +371,7 @@ pub fn startFrame() Allocator.Error!void {
 
     const v = comptime Color.from(26).clampedVec3();
     gl.ClearColor(v.x, v.y, v.z, 1);
-    gl.Clear(gl.COLOR_BUFFER_BIT);
-    gl.Clear(gl.DEPTH_BUFFER_BIT);
+    gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     debug.startFrame();
 }
@@ -387,10 +386,21 @@ const Framebuffer = res.Framebuffer;
 
 pub const RenderPass = struct {
     pub const Spec = packed struct {
-        render_actors: bool,
         render_billboards: bool,
         render_debug_shapes: bool,
         render_skybox: bool,
+
+        pub const all: Spec = .{
+            .render_billboards = true,
+            .render_debug_shapes = true,
+            .render_skybox = true,
+        };
+
+        pub const none: Spec = .{
+            .render_billboards = false,
+            .render_debug_shapes = false,
+            .render_skybox = false,
+        };
     };
 
     spec: Spec,
@@ -416,6 +426,11 @@ pub fn render(camera: *const Camera) Allocator.Error!void {
         fb.bind();
         defer fb.unbind();
 
+        const v = pass.clear_color.clampedVec3();
+        gl.ClearColor(v.x, v.y, v.z, 1);
+        gl.Clear(gl.COLOR_BUFFER_BIT);
+        gl.Clear(gl.DEPTH_BUFFER_BIT);
+
         var render_groups = try buildRenderGroups(
             alloc,
             pass.actors,
@@ -426,14 +441,19 @@ pub fn render(camera: *const Camera) Allocator.Error!void {
 
         try renderFrame(
             scene,
-            null,
+            pass.spec,
             &render_groups_iter,
         );
     }
 
     if (state.render_texture_handle) |render_texture_handle| {
-        engine.disableWireframe();
-        defer engine.enableWireframe();
+        const wireframe_enabled = engine.wireframeEnabled();
+        if (wireframe_enabled) {
+            gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL);
+        }
+        defer if (wireframe_enabled) {
+            gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
+        };
 
         gl.ActiveTexture(gl.TEXTURE0);
         gl.BindTexture(gl.TEXTURE_2D, @intCast(render_texture_handle));
@@ -473,10 +493,20 @@ fn renderFrame(
     spec: ?RenderPass.Spec,
     render_groups: *RenderGroups.Iterator,
 ) Allocator.Error!void {
+    try renderRenderGroups(render_groups);
+
     if (spec) |s| {
-        _ = s; // autofix
+        if (s.render_billboards) {
+            renderBillboards();
+        }
+
+        if (s.render_debug_shapes) {
+            try debug.renderDebugShapes(&state.shaders);
+        }
+        if (s.render_skybox and !scene.skybox_hidden) {
+            renderSkybox(&scene.skybox);
+        }
     } else {
-        try renderRenderGroups(render_groups);
         renderBillboards();
 
         try debug.renderDebugShapes(&state.shaders);

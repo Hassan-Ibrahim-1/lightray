@@ -10,6 +10,7 @@ const input = engine.input;
 const renderer = engine.renderer;
 const debug = renderer.debug;
 const Framebuffer = res.Framebuffer;
+const RenderPass = renderer.RenderPass;
 
 const cube_len: usize = 5000;
 
@@ -17,6 +18,11 @@ const Vec3 = math.Vec3;
 
 var fb_handle: Framebuffer.Handle = undefined;
 var fb_image: engine.Image = undefined;
+
+const State = struct {
+    render_pass: RenderPass,
+};
+var state: State = undefined;
 
 fn init(rp: *res.ResourcePool) !void {
     const scene = engine.scene();
@@ -33,10 +39,7 @@ fn init(rp: *res.ResourcePool) !void {
         .minimum_filter = .linear,
         .magnification_filter = .linear,
     });
-
-    fb_image = try .fromFile("engine/textures/skybox/front.jpg");
-
-    ca.setImage(fb_image);
+    ca.setEmptyImage(window_size.width, window_size.height, .rgba);
 
     _ = fb.createRenderbufferAttachment(.depth24_stencil8);
 
@@ -44,22 +47,12 @@ fn init(rp: *res.ResourcePool) !void {
 
     renderer.setRenderTexture(ca.handle);
 
-    // const cube = scene.createActor("some cube");
-    // try cube.render_item.addMesh(renderer.shapes().cube);
-
-    // const t, const t_handle = try rp.createTexture();
-    // t.* = .{
-    //     .handle = ca.handle,
-    //     .loaded = true,
-    //     .width = fb_image.width,
-    //     .height = fb_image.height,
-    //     .nr_channels = fb_image.format.channels(),
-    //     .path = "NO PATH",
-    // };
-
-    // const ri = &cube.render_item;
-    // try ri.material.diffuse_textures.append(ri.alloc, t_handle);
-    renderer.setRenderTexture(ca.handle);
+    state.render_pass = .{
+        .spec = .all,
+        .actors = undefined,
+        .framebuffer = fb_handle,
+        .clear_color = .from(26),
+    };
 }
 
 var start: Vec3 = .init(0, 0, -1);
@@ -71,6 +64,10 @@ fn update() !void {
     const aabb = renderer.shapes().cube.aabb;
 
     const hit = mouse_ray.getIntersection(aabb);
+
+    const scene = engine.scene();
+    state.render_pass.actors = scene.actors.values();
+    try renderer.addRenderPass(&state.render_pass);
 
     if (engine.cursorEnabled()) {
         ig.begin("hm");
