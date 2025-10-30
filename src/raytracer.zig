@@ -3,14 +3,15 @@ const cube_len: usize = 5000;
 
 const std = @import("std");
 const Allocator = mem.Allocator;
+const Io = std.Io;
 const builtin = @import("builtin");
 const mem = std.mem;
 
 const engine = @import("engine");
+const cast = engine.cast;
 const math = engine.math;
 const res = engine.res;
 const fs = engine.fs;
-const ig = engine.ig;
 const input = engine.input;
 const renderer = engine.renderer;
 const debug = renderer.debug;
@@ -27,20 +28,32 @@ pub const ImageSpec = struct {
 
 pub const image_format = Image.Format.rgb;
 
+pub const Error = Allocator.Error || Io.Writer.Error;
+
 /// image format is always rgb
-pub fn raytrace(alloc: Allocator, spec: ImageSpec) Allocator.Error!Image {
-    const len = spec.width * spec.height * image_format.channels();
-    _ = len; // autofix
+pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
+    var pixels: std.ArrayList(Color3) = .empty;
+    try pixels.ensureTotalCapacityPrecise(alloc, spec.width * spec.height);
+    errdefer pixels.deinit(alloc);
 
-    const pixels = try alloc.alloc(Color3, spec.width * spec.height);
-    errdefer alloc.free(pixels);
+    for (0..spec.height) |j| {
+        for (0..spec.width) |i| {
+            const r = cast.as(f32, i) / cast.as(f32, spec.width - 1);
+            const g = cast.as(f32, j) / cast.as(f32, spec.height - 1);
+            const b = 0;
 
-    @memset(pixels, .cyan);
+            const ir = cast.as(u8, 255.999 * r);
+            const ig = cast.as(u8, 255.999 * g);
+            const ib = cast.as(u8, 255.999 * b);
+
+            pixels.appendAssumeCapacity(.init(ir, ig, ib));
+        }
+    }
 
     return Image{
         .width = spec.width,
         .height = spec.height,
         .format = image_format,
-        .data = mem.sliceAsBytes(pixels),
+        .data = mem.sliceAsBytes(try pixels.toOwnedSlice(alloc)),
     };
 }
