@@ -1,8 +1,8 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
 const engine = @import("engine");
 const math = engine.math;
-const log = engine.debug.log.scoped(.main);
-const builtin = @import("builtin");
 const res = engine.res;
 const fs = engine.fs;
 const ig = engine.ig;
@@ -11,10 +11,10 @@ const renderer = engine.renderer;
 const debug = renderer.debug;
 const Framebuffer = res.Framebuffer;
 const RenderPass = renderer.RenderPass;
-
-const cube_len: usize = 5000;
-
 const Vec3 = math.Vec3;
+
+const log = engine.debug.log.scoped(.main);
+const cube_len: usize = 5000;
 
 var fb_handle: Framebuffer.Handle = undefined;
 var fb_image: engine.Image = undefined;
