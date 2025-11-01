@@ -37,10 +37,11 @@ fn init(rp: *res.ResourcePool) !void {
         .magnification_filter = .linear,
     });
 
-    const image = try raytracer.raytrace(
+    var image = try raytracer.raytrace(
         engine.arena(),
         .{ .width = 1280, .height = 720 },
     );
+    image.flipY();
 
     ca.setImage(image);
 

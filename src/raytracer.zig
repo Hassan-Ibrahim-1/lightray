@@ -20,6 +20,45 @@ const RenderPass = renderer.RenderPass;
 const Vec3 = math.Vec3;
 const Image = engine.Image;
 pub const Color3 = @import("raytracer/Color3.zig");
+pub const Interval = @import("raytracer/Interval.zig");
+
+const Viewport = struct {
+    pixel_delta_u: Vec3,
+    pixel_delta_v: Vec3,
+    top_left_pixel: Vec3,
+
+    pub fn init(
+        aspect_ratio: f32,
+        image_width: u32,
+        focal_length: f32,
+        camera_center: Vec3,
+    ) Viewport {
+        const image_height = @max(1, cast.as(u32, cast.as(f32, image_width) / aspect_ratio));
+
+        const vp_height = 2.0;
+        const vp_width = vp_height * cast.as(f32, (image_width / image_height));
+
+        const vp_u = Vec3.init(vp_width, 0, 0);
+        const vp_v = Vec3.init(0, -vp_height, 0);
+
+        // Calculate the horizontal and vertical delta vectors from pixel to pixel.
+        const pixel_delta_u = vp_u.divValue(cast.as(f32, image_width));
+        const pixel_delta_v = vp_v.divValue(cast.as(f32, image_height));
+
+        // Calculate the location of the upper left pixel.
+        const vp_upper_left = camera_center.sub(
+            Vec3.init(0, 0, focal_length).sub(vp_u.mulValue(0.5)).sub(vp_v.mulValue(-0.5)),
+        );
+
+        const top_left_pixel = vp_upper_left.add(pixel_delta_u.add(pixel_delta_v).mulValue(0.5));
+
+        return .{
+            .pixel_delta_u = pixel_delta_u,
+            .pixel_delta_v = pixel_delta_v,
+            .top_left_pixel = top_left_pixel,
+        };
+    }
+};
 
 pub const ImageSpec = struct {
     width: u32,
@@ -36,17 +75,23 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
     try pixels.ensureTotalCapacityPrecise(alloc, spec.width * spec.height);
     errdefer pixels.deinit(alloc);
 
+    const camera_center = Vec3.zero;
+    const focal_length = 1.0;
+
+    const viewport = Viewport.init(16.0 / 9.0, spec.width, focal_length, camera_center);
+
     for (0..spec.height) |j| {
         for (0..spec.width) |i| {
-            const r = cast.as(f32, i) / cast.as(f32, spec.width - 1);
-            const g = cast.as(f32, j) / cast.as(f32, spec.height - 1);
-            const b = 0;
+            // const pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
+            const pixel_center = viewport.top_left_pixel
+                .add(viewport.pixel_delta_u.mulValue(cast.as(f32, i)))
+                .add(viewport.pixel_delta_v.mulValue(cast.as(f32, j)));
+            const ray_direction = pixel_center.sub(camera_center);
+            const r = Ray.init(camera_center, ray_direction);
 
-            const ir = cast.as(u8, 255.999 * r);
-            const ig = cast.as(u8, 255.999 * g);
-            const ib = cast.as(u8, 255.999 * b);
+            const pixel_color = rayColor(r);
 
-            pixels.appendAssumeCapacity(.init(ir, ig, ib));
+            pixels.appendAssumeCapacity(pixel_color);
         }
     }
 
@@ -56,4 +101,13 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
         .format = image_format,
         .data = mem.sliceAsBytes(try pixels.toOwnedSlice(alloc)),
     };
+}
+
+const Ray = math.Ray;
+
+fn rayColor(ray: Ray) Color3 {
+    const unit_direction = ray.direction.normalized();
+    const a = 0.5 * (unit_direction.y + 1.0);
+    // return (1.0 - a) * Color3.init(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
+    return Color3.white.mul(1.0 - a).add(Color3.initF32(0.5, 0.7, 1.0).mul(a));
 }

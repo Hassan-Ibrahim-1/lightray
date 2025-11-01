@@ -86,3 +86,20 @@ pub fn freeFromFile(self: *Image) void {
     c.stbi_image_free(self.data.ptr);
     self.* = undefined;
 }
+
+pub fn flipY(self: *Image) void {
+    const bytes_per_pixel = self.format.channels();
+    const row_size = self.width * bytes_per_pixel;
+
+    for (0..self.height / 2) |y| {
+        const top_idx = y * row_size;
+        const bottom_idx = (self.height - 1 - y) * row_size;
+
+        // Swap full rows
+        for (0..row_size) |i| {
+            const tmp = self.data[top_idx + i];
+            self.data[top_idx + i] = self.data[bottom_idx + i];
+            self.data[bottom_idx + i] = tmp;
+        }
+    }
+}
