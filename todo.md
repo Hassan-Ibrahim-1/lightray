@@ -44,6 +44,7 @@ bounding box stuff
 things i want to raytrace:
     a dark hallway
     a bunch of cubes in the air in a dark setting
+    a large landscape kind of like ghost of tsushima
     a cozy room with a fireplace
     an old car
     a fractal
