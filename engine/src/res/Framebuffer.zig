@@ -71,11 +71,7 @@ pub const ColorAttachment = struct {
         _: *ColorAttachment,
         image: Image,
     ) void {
-        const width, const height = switch (builtin.os.tag) {
-            .macos => .{ image.width * 2, image.height * 2 },
-            .linux => .{ image.width, image.height },
-            else => |tag| @compileError(@tagName(tag) ++ " os not supported"),
-        };
+        const width, const height = .{ image.width, image.height };
         const format = image.format.as(c_uint);
         const data_type = gl.UNSIGNED_BYTE;
         gl.TexImage2D(
@@ -92,19 +88,14 @@ pub const ColorAttachment = struct {
     }
 
     pub fn setEmptyImage(_: *ColorAttachment, w: u32, h: u32, fmt: Texture.Format) void {
-        const width, const height = switch (builtin.os.tag) {
-            .macos => .{ w * 2, h * 2 },
-            .linux => .{ w, h },
-            else => |tag| @compileError(@tagName(tag) ++ " os not supported"),
-        };
         const format = fmt.as(c_uint);
         const data_type = gl.UNSIGNED_BYTE;
         gl.TexImage2D(
             gl.TEXTURE_2D,
             0,
             @intCast(format),
-            @intCast(width),
-            @intCast(height),
+            @intCast(w),
+            @intCast(h),
             0,
             format,
             data_type,
@@ -128,17 +119,11 @@ pub const RenderbufferAttachment = struct {
         var handle: c_uint = undefined;
         gl.GenRenderbuffers(1, @ptrCast(&handle));
         gl.BindRenderbuffer(gl.RENDERBUFFER, handle);
-
-        const w, const h = switch (builtin.os.tag) {
-            .macos => .{ width * 2, height * 2 },
-            .linux => .{ width, height },
-            else => |tag| @compileError(@tagName(tag) ++ " os not supported"),
-        };
         gl.RenderbufferStorage(
             gl.RENDERBUFFER,
             format.as(c_uint),
-            @intCast(w),
-            @intCast(h),
+            @intCast(width),
+            @intCast(height),
         );
 
         return .{
