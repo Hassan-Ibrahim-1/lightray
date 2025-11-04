@@ -39,10 +39,6 @@ const std = @import("std");
 
 /// expects values from 0 through 1
 pub fn initF32(r: f32, g: f32, b: f32) Color {
-    // first argument is so high because otherwise the brightness
-    // was really low. probably because of some other issue idk
-    const intensity = Interval.init(0.929, 0.999);
-    _ = intensity; // autofix
     return .{
         .r = @intFromFloat(clamp01(r) * 255),
         .g = @intFromFloat(clamp01(g) * 255),

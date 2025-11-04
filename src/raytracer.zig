@@ -33,24 +33,29 @@ const Viewport = struct {
         focal_length: f32,
         camera_center: Vec3,
     ) Viewport {
-        const image_height = @max(1, cast.as(u32, cast.as(f32, image_width) / aspect_ratio));
+        const image_height = @max(1, cast.as(f32, image_width) / aspect_ratio);
 
         const vp_height = 2.0;
-        const vp_width = vp_height * cast.as(f32, (image_width / image_height));
+        const vp_width = vp_height * aspect_ratio;
 
-        const vp_u = Vec3.init(vp_width, 0, 0);
-        const vp_v = Vec3.init(0, -vp_height, 0);
+        // Basis vectors for the viewport
+        const vp_u = Vec3.init(vp_width, 0, 0); // horizontal (right)
+        const vp_v = Vec3.init(0, -vp_height, 0); // vertical (down)
 
-        // Calculate the horizontal and vertical delta vectors from pixel to pixel.
+        // Pixel deltas
         const pixel_delta_u = vp_u.divValue(cast.as(f32, image_width));
         const pixel_delta_v = vp_v.divValue(cast.as(f32, image_height));
 
-        // Calculate the location of the upper left pixel.
-        const vp_upper_left = camera_center.sub(
-            Vec3.init(0, 0, focal_length).sub(vp_u.mulValue(0.5)).sub(vp_v.mulValue(-0.5)),
-        );
+        // Upper-left corner of the viewport in world space
+        const vp_center = camera_center.sub(Vec3.init(0, 0, focal_length));
+        const vp_upper_left = vp_center
+            .sub(vp_u.mulValue(0.5)) // move left half width
+            .sub(vp_v.mulValue(0.5)); // move up half height
 
-        const top_left_pixel = vp_upper_left.add(pixel_delta_u.add(pixel_delta_v).mulValue(0.5));
+        // Center of the top-left pixel
+        const top_left_pixel = vp_upper_left
+            .add(pixel_delta_u.mulValue(0.5))
+            .add(pixel_delta_v.mulValue(0.5));
 
         return .{
             .pixel_delta_u = pixel_delta_u,
@@ -86,6 +91,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
             const pixel_center = viewport.top_left_pixel
                 .add(viewport.pixel_delta_u.mulValue(cast.as(f32, i)))
                 .add(viewport.pixel_delta_v.mulValue(cast.as(f32, j)));
+
             const ray_direction = pixel_center.sub(camera_center);
             const r = Ray.init(camera_center, ray_direction);
 
@@ -106,6 +112,14 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
 const Ray = math.Ray;
 
 fn rayColor(ray: Ray) Color3 {
+    const sphere = math.Sphere{
+        .position = .init(0, 0, -15),
+        .radius = 1,
+    };
+    if (ray.intersectsWithSphere(sphere)) {
+        return .red;
+    }
+
     const unit_direction = ray.direction.normalized();
     const a = 0.5 * (unit_direction.y + 1.0);
     // return (1.0 - a) * Color3.init(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);

@@ -5,7 +5,7 @@ const engine = @import("engine.zig");
 const Transform = engine.Transform;
 var r = RandGen.init(0);
 pub var rand = r.random();
-const c = @cImport({
+const stb = @cImport({
     @cInclude("stb_perlin.h");
 });
 
@@ -86,7 +86,7 @@ pub const Bounds = struct {
 pub const Noise = struct {
     /// all values must be between -1 and 1
     pub fn perlin(x: f32, y: f32, z: f32) f32 {
-        return c.stb_perlin_noise3(x, y, z, 0, 0, 0);
+        return stb.stb_perlin_noise3(x, y, z, 0, 0, 0);
     }
 
     // look at stb_perlin.h's documentation on the next three noise functions
@@ -95,17 +95,17 @@ pub const Noise = struct {
 
     /// all values must be between -1 and 1
     pub fn fbm(x: f32, y: f32, z: f32) f32 {
-        return c.stb_perlin_fbm_noise3(x, y, z, 2.0, 0.5, 6);
+        return stb.stb_perlin_fbm_noise3(x, y, z, 2.0, 0.5, 6);
     }
 
     /// all values must be between -1 and 1
     pub fn ridge(x: f32, y: f32, z: f32) f32 {
-        return c.stb_perlin_ridge_noise3(x, y, z, 2.0, 0.5, 6);
+        return stb.stb_perlin_ridge_noise3(x, y, z, 2.0, 0.5, 6);
     }
 
     /// all values must be between -1 and 1
     pub fn turbulence(x: f32, y: f32, z: f32) f32 {
-        return c.stb_perlin_turbulence_noise3(x, y, z, 2.0, 0.5, 6);
+        return stb.stb_perlin_turbulence_noise3(x, y, z, 2.0, 0.5, 6);
     }
 };
 
@@ -1128,6 +1128,11 @@ pub const Vec2 = extern struct {
     }
 };
 
+pub const Sphere = struct {
+    position: Vec3,
+    radius: f32,
+};
+
 pub const Ray = struct {
     const Self = @This();
 
@@ -1172,6 +1177,23 @@ pub const Ray = struct {
         }
         return tnear;
     }
+
+    pub fn intersectsWithSphere(self: Ray, sphere: Sphere) bool {
+        const oc = sphere.position.sub(self.origin);
+        const a = self.direction.dot(self.direction);
+        const b = -2.0 * self.direction.dot(oc);
+        const c = oc.dot(oc) - (sphere.radius * sphere.radius);
+        const discriminant = b * b - 4 * a * c;
+        return discriminant >= 0;
+    }
+    // pub fn intersectsWithSphere(self: Ray, sphere: Sphere) bool {
+    //     const oc = self.origin.sub(sphere.position);
+    //     const a = self.direction.dot(self.direction);
+    //     const b = 2.0 * self.direction.dot(oc);
+    //     const c = oc.dot(oc) - (sphere.radius * sphere.radius);
+    //     const discriminant = b * b - 4 * a * c;
+    //     return discriminant >= 0;
+    // }
 };
 
 pub const Aabb = extern struct {

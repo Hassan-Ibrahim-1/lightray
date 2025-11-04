@@ -1,3 +1,5 @@
+//! ...because BoundedArray is gone from the stdlib
+
 // copied from https://github.com/floooh/chipz/blob/main/src/common/bounded_array.zig
 // MIT License
 //
@@ -21,7 +23,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// ...because BoundedArray is gone from the stdlib
 const std = @import("std");
 const assert = std.debug.assert;
 

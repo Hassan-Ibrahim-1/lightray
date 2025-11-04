@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) void {
     ) orelse true;
 
     const exe = b.addExecutable(.{
-        .name = "linalg",
+        .name = "lightray",
         .root_module = mod,
         .use_llvm = use_llvm,
     });

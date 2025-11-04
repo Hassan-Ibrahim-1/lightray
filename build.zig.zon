@@ -1,7 +1,7 @@
 .{
-    .name = .linalg,
+    .name = .lightray,
     .version = "0.0.0",
-    .fingerprint = 0xd2a48ac9da760c5a, // Changing this has security and trust implications.
+    .fingerprint = 0xa6ec784ecd42c11d, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
         .engine = .{

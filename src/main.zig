@@ -123,13 +123,13 @@ pub fn main() !void {
         try engine.init(&.{
             .width = 3840,
             .height = 2160,
-            .name = "linalg",
+            .name = "lightray",
         });
     } else {
         try engine.init(&.{
             .width = 1920,
             .height = 1080,
-            .name = "linalg",
+            .name = "lightray",
         });
     }
     defer engine.deinit();
