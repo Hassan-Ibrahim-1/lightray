@@ -113,11 +113,13 @@ const Ray = math.Ray;
 
 fn rayColor(ray: Ray) Color3 {
     const sphere = math.Sphere{
-        .position = .init(0, 0, -15),
-        .radius = 1,
+        .position = .init(0, 0, -1),
+        .radius = 0.5,
     };
-    if (ray.intersectsWithSphere(sphere)) {
-        return .red;
+
+    if (ray.intersectsWithSphere(sphere)) |hit| {
+        const n = ray.at(hit).sub(.init(0, 0, -1)).normalized();
+        return Color3.fromVec3(n.add(.fromValue(1.0)).mulValue(0.5));
     }
 
     const unit_direction = ray.direction.normalized();

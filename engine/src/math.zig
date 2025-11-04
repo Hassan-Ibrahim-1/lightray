@@ -1178,13 +1178,17 @@ pub const Ray = struct {
         return tnear;
     }
 
-    pub fn intersectsWithSphere(self: Ray, sphere: Sphere) bool {
+    /// returns the t value where intersection occurs.
+    pub fn intersectsWithSphere(self: Ray, sphere: Sphere) ?f32 {
         const oc = sphere.position.sub(self.origin);
         const a = self.direction.dot(self.direction);
         const b = -2.0 * self.direction.dot(oc);
         const c = oc.dot(oc) - (sphere.radius * sphere.radius);
         const discriminant = b * b - 4 * a * c;
-        return discriminant >= 0;
+        if (discriminant < 0) {
+            return null;
+        }
+        return (-b * @sqrt(discriminant)) / (2.0 * a);
     }
     // pub fn intersectsWithSphere(self: Ray, sphere: Sphere) bool {
     //     const oc = self.origin.sub(sphere.position);
