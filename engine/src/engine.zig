@@ -50,6 +50,7 @@ pub const ig_backend = @cImport({
 
 pub const stb = @cImport({
     @cInclude("stb_image.h");
+    @cInclude("stb_image_write.h");
 });
 
 /// use this to get access to engine resources

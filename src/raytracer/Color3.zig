@@ -55,11 +55,7 @@ pub fn from(r: u8) Color {
 }
 
 pub fn fromVec3(v: Vec3) Color {
-    return Color.init(
-        @intFromFloat(v.x * 255),
-        @intFromFloat(v.y * 255),
-        @intFromFloat(v.z * 255),
-    );
+    return Color.initF32(v.x, v.y, v.z);
 }
 
 pub fn clampedVec3(self: *const Color) Vec3 {

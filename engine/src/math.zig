@@ -1181,14 +1181,14 @@ pub const Ray = struct {
     /// returns the t value where intersection occurs.
     pub fn intersectsWithSphere(self: Ray, sphere: Sphere) ?f32 {
         const oc = sphere.position.sub(self.origin);
-        const a = self.direction.dot(self.direction);
-        const b = -2.0 * self.direction.dot(oc);
-        const c = oc.dot(oc) - (sphere.radius * sphere.radius);
-        const discriminant = b * b - 4 * a * c;
+        const a = self.direction.lengthSquared();
+        const h = self.direction.dot(oc);
+        const c = oc.lengthSquared() - (sphere.radius * sphere.radius);
+        const discriminant = h * h - a * c;
         if (discriminant < 0) {
             return null;
         }
-        return (-b * @sqrt(discriminant)) / (2.0 * a);
+        return (h - @sqrt(discriminant)) / a;
     }
     // pub fn intersectsWithSphere(self: Ray, sphere: Sphere) bool {
     //     const oc = self.origin.sub(sphere.position);

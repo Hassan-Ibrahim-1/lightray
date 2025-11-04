@@ -65,6 +65,70 @@ const Viewport = struct {
     }
 };
 
+const HitRecord = struct {
+    p: Vec3,
+    normal: Vec3,
+    t: f32,
+    front_face: bool,
+
+    fn setFaceNormal(self: *HitRecord, r: Ray, outward_normal: Vec3) void {
+        self.front_face = r.direction.dot(outward_normal) < 0;
+        self.normal = if (self.front_face) outward_normal else outward_normal.negate();
+    }
+};
+
+const assert = std.debug.assert;
+
+const Hittable = union(enum) {
+    sphere: math.Sphere,
+
+    fn hit(self: Hittable, r: Ray, t_min: f32, t_max: f32) ?HitRecord {
+        return switch (self) {
+            .sphere => |s| sphereHit(s, r, t_min, t_max),
+        };
+    }
+
+    fn sphereHit(s: math.Sphere, r: Ray, t_min: f32, t_max: f32) ?HitRecord {
+        assert(s.radius >= 0);
+
+        const oc = s.position.sub(r.origin);
+        const a = r.direction.lengthSquared();
+        const h = r.direction.dot(oc);
+        const c = oc.lengthSquared() - (s.radius * s.radius);
+        const discriminant = h * h - a * c;
+        if (discriminant < 0) {
+            return null;
+        }
+
+        const sqrt_discriminant = @sqrt(discriminant);
+        var root = (h - sqrt_discriminant) / a;
+        if (root <= t_min or t_max <= root) {
+            root = (h + sqrt_discriminant) / a;
+            if (root <= t_min or t_max <= root) {
+                return null;
+            }
+        }
+
+        var rec: HitRecord = undefined;
+        rec.t = root;
+        rec.p = r.at(root);
+        rec.setFaceNormal(r, rec.p.sub(s.position).divValue(s.radius));
+        return rec;
+    }
+};
+
+fn closestHit(hittables: []const Hittable, r: Ray, t_min: f32, t_max: f32) ?HitRecord {
+    var rec: ?HitRecord = null;
+    var closest = t_max;
+    for (hittables) |*h| {
+        if (h.hit(r, t_min, closest)) |hit_rec| {
+            rec = hit_rec;
+            closest = hit_rec.t;
+        }
+    }
+    return rec;
+}
+
 pub const ImageSpec = struct {
     width: u32,
     height: u32,
@@ -85,6 +149,23 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
 
     const viewport = Viewport.init(16.0 / 9.0, spec.width, focal_length, camera_center);
 
+    var hittables: std.ArrayList(Hittable) = .empty;
+    defer hittables.deinit(alloc);
+
+    try hittables.append(alloc, .{
+        .sphere = .{
+            .position = .init(0, 0, -1),
+            .radius = 0.5,
+        },
+    });
+
+    try hittables.append(alloc, .{
+        .sphere = .{
+            .position = .init(0, -100.5, -1),
+            .radius = 100,
+        },
+    });
+
     for (0..spec.height) |j| {
         for (0..spec.width) |i| {
             // const pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
@@ -95,7 +176,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
             const ray_direction = pixel_center.sub(camera_center);
             const r = Ray.init(camera_center, ray_direction);
 
-            const pixel_color = rayColor(r);
+            const pixel_color = rayColor(r, hittables.items);
 
             pixels.appendAssumeCapacity(pixel_color);
         }
@@ -111,15 +192,9 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
 
 const Ray = math.Ray;
 
-fn rayColor(ray: Ray) Color3 {
-    const sphere = math.Sphere{
-        .position = .init(0, 0, -1),
-        .radius = 0.5,
-    };
-
-    if (ray.intersectsWithSphere(sphere)) |hit| {
-        const n = ray.at(hit).sub(.init(0, 0, -1)).normalized();
-        return Color3.fromVec3(n.add(.fromValue(1.0)).mulValue(0.5));
+fn rayColor(ray: Ray, hittables: []const Hittable) Color3 {
+    if (closestHit(hittables, ray, 0.0, math.infinity)) |rec| {
+        return Color3.fromVec3(rec.normal.add(.fromValue(1.0)).mulValue(0.5));
     }
 
     const unit_direction = ray.direction.normalized();

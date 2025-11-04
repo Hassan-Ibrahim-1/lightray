@@ -81,10 +81,26 @@ pub fn fromFile(path: []const u8) Error!Image {
     };
 }
 
-/// Only call this if the image was created from `Image.fromFile`
+/// Only call this if the image was created using `Image.fromFile`
 pub fn freeFromFile(self: *Image) void {
     c.stbi_image_free(self.data.ptr);
     self.* = undefined;
+}
+
+pub fn writePng(self: *Image, filename: [:0]const u8) !void {
+    const stride = cast.as(c_int, self.width * self.format.channels());
+    const e = c.stbi_write_png(
+        filename,
+        @intCast(self.width),
+        @intCast(self.height),
+        @intCast(self.format.channels()),
+        self.data.ptr,
+        stride,
+    );
+    if (e == 0) {
+        log.err("stbi_write_png failed", .{});
+        return error.WriteFailed;
+    }
 }
 
 pub fn flipY(self: *Image) void {

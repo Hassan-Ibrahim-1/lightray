@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) void {
 
     const src_files = [_][]const u8{
         dependency("stb_image.c"),
+        dependency("stb_image_write.c"),
         dependency("stb_perlin.c"),
         dependency("cgltf.c"),
     };
