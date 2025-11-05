@@ -27,7 +27,7 @@ const Viewport = struct {
     pixel_delta_v: Vec3,
     top_left_pixel: Vec3,
 
-    pub fn init(
+    fn init(
         aspect_ratio: f32,
         image_width: u32,
         focal_length: f32,
@@ -38,21 +38,17 @@ const Viewport = struct {
         const vp_height = 2.0;
         const vp_width = vp_height * aspect_ratio;
 
-        // Basis vectors for the viewport
-        const vp_u = Vec3.init(vp_width, 0, 0); // horizontal (right)
-        const vp_v = Vec3.init(0, -vp_height, 0); // vertical (down)
+        const vp_u = Vec3.init(vp_width, 0, 0);
+        const vp_v = Vec3.init(0, -vp_height, 0);
 
-        // Pixel deltas
         const pixel_delta_u = vp_u.divValue(cast.as(f32, image_width));
         const pixel_delta_v = vp_v.divValue(cast.as(f32, image_height));
 
-        // Upper-left corner of the viewport in world space
         const vp_center = camera_center.sub(Vec3.init(0, 0, focal_length));
         const vp_upper_left = vp_center
-            .sub(vp_u.mulValue(0.5)) // move left half width
-            .sub(vp_v.mulValue(0.5)); // move up half height
+            .sub(vp_u.mulValue(0.5))
+            .sub(vp_v.mulValue(0.5));
 
-        // Center of the top-left pixel
         const top_left_pixel = vp_upper_left
             .add(pixel_delta_u.mulValue(0.5))
             .add(pixel_delta_v.mulValue(0.5));
