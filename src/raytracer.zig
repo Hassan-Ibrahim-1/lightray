@@ -185,7 +185,6 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
             .{
                 cast.as(u32, row),
                 spec.width,
-                spec.height,
                 samples_per_pixel,
                 pixel_sample_scale,
                 &viewport,
@@ -214,7 +213,6 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
 fn raytraceRow(
     row: u32,
     width: u32,
-    height: u32,
     samples_per_pixel: u32,
     pixel_sample_scale: f32,
     viewport: *const Viewport,
@@ -222,8 +220,6 @@ fn raytraceRow(
     hittables: []const Hittable,
     color_out: []Color3,
 ) void {
-    _ = height; // autofix
-    // log.info("scanlines remaining: {}", .{height - row});
     for (0..width) |i| {
         const pixel_color: Color3 = col: {
             var col: Vec3 = .zero;
