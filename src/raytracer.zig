@@ -70,6 +70,7 @@ const HitRecord = struct {
     normal: Vec3,
     t: f32,
     front_face: bool,
+    material: Material,
 
     fn setFaceNormal(self: *HitRecord, r: Ray, outward_normal: Vec3) void {
         self.front_face = r.direction.dot(outward_normal) < 0;
@@ -77,8 +78,14 @@ const HitRecord = struct {
     }
 };
 
+const Sphere = struct {
+    position: Vec3,
+    radius: f32,
+    material: Material,
+};
+
 const Hittable = union(enum) {
-    sphere: math.Sphere,
+    sphere: Sphere,
 
     fn hit(self: Hittable, r: Ray, ray_t: Interval) ?HitRecord {
         return switch (self) {
@@ -86,7 +93,7 @@ const Hittable = union(enum) {
         };
     }
 
-    fn sphereHit(s: math.Sphere, r: Ray, ray_t: Interval) ?HitRecord {
+    fn sphereHit(s: Sphere, r: Ray, ray_t: Interval) ?HitRecord {
         assert(s.radius >= 0);
 
         const oc = s.position.sub(r.origin);
@@ -112,6 +119,47 @@ const Hittable = union(enum) {
         rec.p = r.at(root);
         rec.setFaceNormal(r, rec.p.sub(s.position).divValue(s.radius));
         return rec;
+    }
+};
+
+const Material = union(enum) {
+    const ScatterInfo = struct {
+        attenuation: Color3,
+        scattered: Ray,
+    };
+
+    lambertian: struct {
+        albedo: Color3,
+
+        fn scatter(self: *const @This(), rec: HitRecord) ?ScatterInfo {
+            var scatter_direction = rec.normal.add(Vec3.randomNormalized());
+            if (scatter_direction.nearZero()) {
+                scatter_direction = rec.normal;
+            }
+            return ScatterInfo{
+                .scattered = .init(rec.p, scatter_direction),
+                .attenuation = self.albedo,
+            };
+        }
+    },
+
+    metal: struct {
+        albedo: Color3,
+
+        fn scatter(self: *const @This(), r: Ray, rec: HitRecord) ?ScatterInfo {
+            const reflected = Vec3.reflect(r.direction, rec.normal);
+            return ScatterInfo{
+                .scattered = .init(rec.p, reflected),
+                .attenuation = self.albedo,
+            };
+        }
+    },
+
+    fn scatter(self: *const Material, r: Ray, rec: HitRecord) ?ScatterInfo {
+        return switch (self.*) {
+            .lambertian => |l| l.scatter(rec),
+            .metal => |m| m.scatter(r, rec),
+        };
     }
 };
 
@@ -150,6 +198,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     try hittables.append(alloc, .{
         .sphere = .{
             .position = .init(0, 0, -1),
+            .material = .{ .lambertian = .{ .albedo = .red } },
             .radius = 0.5,
         },
     });
@@ -157,6 +206,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     try hittables.append(alloc, .{
         .sphere = .{
             .position = .init(0, -100.5, -1),
+            .material = .{ .lambertian = .{ .albedo = .green } },
             .radius = 100,
         },
     });
@@ -241,7 +291,7 @@ fn raytraceRow(
             }
             break :col Color3.fromVec3(col.mulValue(pixel_sample_scale));
         };
-        color_out[i] = pixel_color;
+        color_out[i] = pixel_color.toGamma();
     }
 }
 
@@ -253,14 +303,14 @@ fn rayColor(ray: Ray, hittables: []const Hittable, depth: u32) Color3 {
     const starting_interval: Interval = .{ .min = 0.001, .max = math.infinity };
 
     if (closestHit(hittables, ray, starting_interval)) |rec| {
-        const direction = if (use_lambertian_diffuse)
-            rec.normal.add(Vec3.randomNormalized())
-        else
-            Vec3.randomOnHemisphere(rec.normal);
-
-        return .fromVec3(
-            rayColor(.init(rec.p, direction), hittables, depth - 1).clampedVec3().mulValue(0.5),
-        );
+        if (rec.material.scatter(ray, rec)) |scatter_info| {
+            return scatter_info.attenuation.mulColor(rayColor(
+                scatter_info.scattered,
+                hittables,
+                depth - 1,
+            ));
+        }
+        return .black;
     }
 
     const unit_direction = ray.direction.normalized();
