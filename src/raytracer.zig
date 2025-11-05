@@ -1,11 +1,9 @@
-const log = engine.debug.log.scoped(.raytracer);
-const cube_len: usize = 5000;
-
 const std = @import("std");
-const Allocator = mem.Allocator;
 const Io = std.Io;
-const builtin = @import("builtin");
 const mem = std.mem;
+const assert = std.debug.assert;
+const Allocator = mem.Allocator;
+const builtin = @import("builtin");
 
 const engine = @import("engine");
 const cast = engine.cast;
@@ -19,8 +17,14 @@ const Framebuffer = res.Framebuffer;
 const RenderPass = renderer.RenderPass;
 const Vec3 = math.Vec3;
 const Image = engine.Image;
+pub const image_format = Image.Format.rgb;
+const Ray = math.Ray;
+
 pub const Color3 = @import("raytracer/Color3.zig");
 pub const Interval = @import("raytracer/Interval.zig");
+
+const log = engine.debug.log.scoped(.raytracer);
+const cube_len: usize = 5000;
 
 const Viewport = struct {
     pixel_delta_u: Vec3,
@@ -72,8 +76,6 @@ const HitRecord = struct {
         self.normal = if (self.front_face) outward_normal else outward_normal.negate();
     }
 };
-
-const assert = std.debug.assert;
 
 const Hittable = union(enum) {
     sphere: math.Sphere,
@@ -131,14 +133,12 @@ pub const ImageSpec = struct {
     height: u32,
 };
 
-pub const image_format = Image.Format.rgb;
-
 pub const Error = Allocator.Error || Io.Writer.Error;
 
 const max_depth = 500;
 
 /// image format is always rgb
-pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
+pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     const camera_center = Vec3.zero;
     const focal_length = 1.0;
 
@@ -165,24 +165,43 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
     const pixels = try alloc.alloc(Color3, spec.width * spec.height);
-    errdefer pixels.deinit(alloc);
+    errdefer alloc.free(pixels);
+
+    var thread_pool: std.Thread.Pool = undefined;
+    try thread_pool.init(.{ .allocator = alloc });
+    defer thread_pool.deinit();
+
+    var wait_group: std.Thread.WaitGroup = .{};
+
+    var timer = try std.time.Timer.start();
 
     for (0..spec.height) |row| {
-        log.info("scanlines remaining: {}", .{spec.height - row});
         const start = row * spec.width;
         const end = (row + 1) * spec.width;
         const color_out = pixels[start..end];
-        raytraceRow(
-            @intCast(row),
-            spec.width,
-            samples_per_pixel,
-            pixel_sample_scale,
-            &viewport,
-            camera_center,
-            hittables.items,
-            color_out,
+        thread_pool.spawnWg(
+            &wait_group,
+            raytraceRow,
+            .{
+                cast.as(u32, row),
+                spec.width,
+                spec.height,
+                samples_per_pixel,
+                pixel_sample_scale,
+                &viewport,
+                camera_center,
+                hittables.items,
+                color_out,
+            },
         );
     }
+
+    log.info("all workers dispatched", .{});
+
+    wait_group.wait();
+
+    const elapsed = cast.as(f64, timer.read()) / cast.as(f64, std.time.ns_per_s);
+    log.info("rendered in {d:.4} seconds", .{elapsed});
 
     return Image{
         .width = spec.width,
@@ -195,6 +214,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
 fn raytraceRow(
     row: u32,
     width: u32,
+    height: u32,
     samples_per_pixel: u32,
     pixel_sample_scale: f32,
     viewport: *const Viewport,
@@ -202,6 +222,8 @@ fn raytraceRow(
     hittables: []const Hittable,
     color_out: []Color3,
 ) void {
+    _ = height; // autofix
+    // log.info("scanlines remaining: {}", .{height - row});
     for (0..width) |i| {
         const pixel_color: Color3 = col: {
             var col: Vec3 = .zero;
@@ -226,8 +248,6 @@ fn raytraceRow(
         color_out[i] = pixel_color;
     }
 }
-
-const Ray = math.Ray;
 
 fn rayColor(ray: Ray, hittables: []const Hittable, depth: u32) Color3 {
     if (depth == 0) return .black;

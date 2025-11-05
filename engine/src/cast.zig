@@ -19,16 +19,13 @@ pub fn as(T: type, x: anytype) T {
         if (trait.isFloat(V)) {
             return @intFromFloat(x);
         }
-        castError(T, V);
-    }
-    if (trait.isFloat(T)) {
+    } else if (trait.isFloat(T)) {
         if (trait.isInt(V)) {
             return @floatFromInt(x);
         }
         if (trait.isFloat(V)) {
             return @floatCast(x);
         }
-        castError(T, V);
     }
     castError(T, V);
 }
