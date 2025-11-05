@@ -139,10 +139,6 @@ const max_depth = 500;
 
 /// image format is always rgb
 pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
-    var pixels: std.ArrayList(Color3) = .empty;
-    try pixels.ensureTotalCapacityPrecise(alloc, spec.width * spec.height);
-    errdefer pixels.deinit(alloc);
-
     const camera_center = Vec3.zero;
     const focal_length = 1.0;
 
@@ -168,40 +164,67 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
     const samples_per_pixel = 10;
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
-    for (0..spec.height) |j| {
-        log.info("scanlines remaining: {}", .{spec.height - j});
-        for (0..spec.width) |i| {
-            const pixel_color: Color3 = col: {
-                var col: Vec3 = .zero;
-                for (0..samples_per_pixel) |_| {
-                    const sample_square = Vec3.init(
-                        math.randomFloat(f32, 0, 1) - 0.5,
-                        math.randomFloat(f32, 0, 1) - 0.5,
-                        0,
-                    );
+    const pixels = try alloc.alloc(Color3, spec.width * spec.height);
+    errdefer pixels.deinit(alloc);
 
-                    // const pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
-                    const pixel_center = viewport.top_left_pixel
-                        .add(viewport.pixel_delta_u.mulValue(cast.as(f32, i) + sample_square.x))
-                        .add(viewport.pixel_delta_v.mulValue(cast.as(f32, j) + sample_square.y));
-
-                    const ray_direction = pixel_center.sub(camera_center);
-                    const r = Ray.init(camera_center, ray_direction);
-                    col = col.add(rayColor(r, hittables.items, max_depth).clampedVec3());
-                }
-                break :col Color3.fromVec3(col.mulValue(pixel_sample_scale));
-            };
-
-            pixels.appendAssumeCapacity(pixel_color);
-        }
+    for (0..spec.height) |row| {
+        log.info("scanlines remaining: {}", .{spec.height - row});
+        const start = row * spec.width;
+        const end = (row + 1) * spec.width;
+        const color_out = pixels[start..end];
+        raytraceRow(
+            @intCast(row),
+            spec.width,
+            samples_per_pixel,
+            pixel_sample_scale,
+            &viewport,
+            camera_center,
+            hittables.items,
+            color_out,
+        );
     }
 
     return Image{
         .width = spec.width,
         .height = spec.height,
         .format = image_format,
-        .data = mem.sliceAsBytes(try pixels.toOwnedSlice(alloc)),
+        .data = mem.sliceAsBytes(pixels),
     };
+}
+
+fn raytraceRow(
+    row: u32,
+    width: u32,
+    samples_per_pixel: u32,
+    pixel_sample_scale: f32,
+    viewport: *const Viewport,
+    camera_center: Vec3,
+    hittables: []const Hittable,
+    color_out: []Color3,
+) void {
+    for (0..width) |i| {
+        const pixel_color: Color3 = col: {
+            var col: Vec3 = .zero;
+            for (0..samples_per_pixel) |_| {
+                const sample_square = Vec3.init(
+                    math.randomFloat(f32, 0, 1) - 0.5,
+                    math.randomFloat(f32, 0, 1) - 0.5,
+                    0,
+                );
+
+                // const pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
+                const pixel_center = viewport.top_left_pixel
+                    .add(viewport.pixel_delta_u.mulValue(cast.as(f32, i) + sample_square.x))
+                    .add(viewport.pixel_delta_v.mulValue(cast.as(f32, row) + sample_square.y));
+
+                const ray_direction = pixel_center.sub(camera_center);
+                const r = Ray.init(camera_center, ray_direction);
+                col = col.add(rayColor(r, hittables, max_depth).clampedVec3());
+            }
+            break :col Color3.fromVec3(col.mulValue(pixel_sample_scale));
+        };
+        color_out[i] = pixel_color;
+    }
 }
 
 const Ray = math.Ray;
