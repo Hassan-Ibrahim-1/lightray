@@ -251,7 +251,7 @@ fn rayColor(ray: Ray, hittables: []const Hittable, depth: u32) Color3 {
     const starting_interval: Interval = .{ .min = 0.001, .max = math.infinity };
 
     if (closestHit(hittables, ray, starting_interval)) |rec| {
-        const direction = Vec3.randomOnHemisphere(rec.normal);
+        const direction = rec.normal.add(Vec3.randomNormalized());
         return .fromVec3(
             rayColor(.init(rec.p, direction), hittables, depth - 1).clampedVec3().mulValue(0.5),
         );
