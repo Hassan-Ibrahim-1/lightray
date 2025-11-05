@@ -82,13 +82,13 @@ const assert = std.debug.assert;
 const Hittable = union(enum) {
     sphere: math.Sphere,
 
-    fn hit(self: Hittable, r: Ray, t_min: f32, t_max: f32) ?HitRecord {
+    fn hit(self: Hittable, r: Ray, ray_t: Interval) ?HitRecord {
         return switch (self) {
-            .sphere => |s| sphereHit(s, r, t_min, t_max),
+            .sphere => |s| sphereHit(s, r, ray_t),
         };
     }
 
-    fn sphereHit(s: math.Sphere, r: Ray, t_min: f32, t_max: f32) ?HitRecord {
+    fn sphereHit(s: math.Sphere, r: Ray, ray_t: Interval) ?HitRecord {
         assert(s.radius >= 0);
 
         const oc = s.position.sub(r.origin);
@@ -102,9 +102,9 @@ const Hittable = union(enum) {
 
         const sqrt_discriminant = @sqrt(discriminant);
         var root = (h - sqrt_discriminant) / a;
-        if (root <= t_min or t_max <= root) {
+        if (!ray_t.surrounds(root)) {
             root = (h + sqrt_discriminant) / a;
-            if (root <= t_min or t_max <= root) {
+            if (!ray_t.surrounds(root)) {
                 return null;
             }
         }
@@ -117,11 +117,12 @@ const Hittable = union(enum) {
     }
 };
 
-fn closestHit(hittables: []const Hittable, r: Ray, t_min: f32, t_max: f32) ?HitRecord {
+fn closestHit(hittables: []const Hittable, r: Ray, ray_t: Interval) ?HitRecord {
     var rec: ?HitRecord = null;
-    var closest = t_max;
+    var closest = ray_t.max;
     for (hittables) |*h| {
-        if (h.hit(r, t_min, closest)) |hit_rec| {
+        if (h.hit(r, ray_t)) |hit_rec| {
+            if (hit_rec.t > closest) continue;
             rec = hit_rec;
             closest = hit_rec.t;
         }
@@ -166,17 +167,32 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
         },
     });
 
+    const samples_per_pixel = 100;
+    const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
+
     for (0..spec.height) |j| {
+        log.info("scanlines remaining: {}", .{spec.height - j});
         for (0..spec.width) |i| {
-            // const pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
-            const pixel_center = viewport.top_left_pixel
-                .add(viewport.pixel_delta_u.mulValue(cast.as(f32, i)))
-                .add(viewport.pixel_delta_v.mulValue(cast.as(f32, j)));
+            const pixel_color: Color3 = col: {
+                var col: Vec3 = .zero;
+                for (0..samples_per_pixel) |_| {
+                    const sample_square = Vec3.init(
+                        math.randomFloat(f32, 0, 1) - 0.5,
+                        math.randomFloat(f32, 0, 1) - 0.5,
+                        0,
+                    );
 
-            const ray_direction = pixel_center.sub(camera_center);
-            const r = Ray.init(camera_center, ray_direction);
+                    // const pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
+                    const pixel_center = viewport.top_left_pixel
+                        .add(viewport.pixel_delta_u.mulValue(cast.as(f32, i) + sample_square.x))
+                        .add(viewport.pixel_delta_v.mulValue(cast.as(f32, j) + sample_square.y));
 
-            const pixel_color = rayColor(r, hittables.items);
+                    const ray_direction = pixel_center.sub(camera_center);
+                    const r = Ray.init(camera_center, ray_direction);
+                    col = col.add(rayColor(r, hittables.items).clampedVec3());
+                }
+                break :col Color3.fromVec3(col.mulValue(pixel_sample_scale));
+            };
 
             pixels.appendAssumeCapacity(pixel_color);
         }
@@ -193,7 +209,9 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
 const Ray = math.Ray;
 
 fn rayColor(ray: Ray, hittables: []const Hittable) Color3 {
-    if (closestHit(hittables, ray, 0.0, math.infinity)) |rec| {
+    const starting_interval: Interval = .{ .min = 0.0, .max = math.infinity };
+
+    if (closestHit(hittables, ray, starting_interval)) |rec| {
         return Color3.fromVec3(rec.normal.add(.fromValue(1.0)).mulValue(0.5));
     }
 

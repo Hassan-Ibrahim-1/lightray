@@ -41,10 +41,9 @@ fn init(rp: *res.ResourcePool) !void {
         engine.arena(),
         .{ .width = 1280, .height = 720 },
     );
+
     rt_image.flipY();
-
     ca.setImage(rt_image);
-
     rt_image.flipY();
 
     _ = fb.createRenderbufferAttachment(.depth24_stencil8);
