@@ -88,11 +88,13 @@ pub fn add(self: Color, other: Color) Color {
     );
 }
 
+const cast = @import("engine").cast;
+
 pub fn mul(self: Color, value: f32) Color {
     return Color.initF32(
-        (@as(f32, @floatFromInt(self.r)) / 256.00) * value,
-        (@as(f32, @floatFromInt(self.g)) / 256.00) * value,
-        (@as(f32, @floatFromInt(self.b)) / 256.00) * value,
+        (cast.as(f32, self.r) / 255.00) * value,
+        (cast.as(f32, self.g) / 255.00) * value,
+        (cast.as(f32, self.b) / 255.00) * value,
     );
 }
 

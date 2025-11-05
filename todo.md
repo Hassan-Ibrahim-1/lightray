@@ -1,8 +1,10 @@
 # NEXT
+visualize randomOnHemisphere and random on a sphere + cube
+
 leave the engine running for a bit, i think there's a leak?
 render times increase as it keeps going. i have no idea what that means.
 
-framebuffer texture broken on macos
+-- framebuffer texture broken on macos
 
 ----------------------------------------------------------------------------------------------------------------
 

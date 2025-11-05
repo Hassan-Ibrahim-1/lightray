@@ -139,6 +139,8 @@ pub const image_format = Image.Format.rgb;
 
 pub const Error = Allocator.Error || Io.Writer.Error;
 
+const max_depth = 500;
+
 /// image format is always rgb
 pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
     var pixels: std.ArrayList(Color3) = .empty;
@@ -167,7 +169,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
         },
     });
 
-    const samples_per_pixel = 100;
+    const samples_per_pixel = 10;
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
     for (0..spec.height) |j| {
@@ -189,7 +191,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
 
                     const ray_direction = pixel_center.sub(camera_center);
                     const r = Ray.init(camera_center, ray_direction);
-                    col = col.add(rayColor(r, hittables.items).clampedVec3());
+                    col = col.add(rayColor(r, hittables.items, max_depth).clampedVec3());
                 }
                 break :col Color3.fromVec3(col.mulValue(pixel_sample_scale));
             };
@@ -208,11 +210,16 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) Error!Image {
 
 const Ray = math.Ray;
 
-fn rayColor(ray: Ray, hittables: []const Hittable) Color3 {
-    const starting_interval: Interval = .{ .min = 0.0, .max = math.infinity };
+fn rayColor(ray: Ray, hittables: []const Hittable, depth: u32) Color3 {
+    if (depth == 0) return .black;
+
+    const starting_interval: Interval = .{ .min = 0.001, .max = math.infinity };
 
     if (closestHit(hittables, ray, starting_interval)) |rec| {
-        return Color3.fromVec3(rec.normal.add(.fromValue(1.0)).mulValue(0.5));
+        const direction = Vec3.randomOnHemisphere(rec.normal);
+        return .fromVec3(
+            rayColor(.init(rec.p, direction), hittables, depth - 1).clampedVec3().mulValue(0.5),
+        );
     }
 
     const unit_direction = ray.direction.normalized();
