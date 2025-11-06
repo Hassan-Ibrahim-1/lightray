@@ -146,6 +146,7 @@ const Material = union(enum) {
 
     metal: struct {
         albedo: Color3,
+        fuzz: f32,
 
         fn scatter(self: *const @This(), r: Ray, rec: HitRecord) ?ScatterInfo {
             const reflected = Vec3.reflect(r.direction, rec.normal);
