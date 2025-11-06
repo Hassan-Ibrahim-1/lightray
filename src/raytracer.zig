@@ -146,13 +146,41 @@ const Material = union(enum) {
 
     metal: struct {
         albedo: Color3,
+        /// between 0 and 1
         fuzz: f32,
 
         fn scatter(self: *const @This(), r: Ray, rec: HitRecord) ?ScatterInfo {
-            const reflected = Vec3.reflect(r.direction, rec.normal);
+            const reflected = Vec3.reflect(r.direction, rec.normal)
+                .normalized()
+                .add(Vec3.randomNormalized().mulValue(self.fuzz));
+
             return ScatterInfo{
                 .scattered = .init(rec.p, reflected),
                 .attenuation = self.albedo,
+            };
+        }
+    },
+
+    dielectric: struct {
+        refraction_index: f32,
+
+        fn scatter(self: *const @This(), r: Ray, rec: HitRecord) ?ScatterInfo {
+            const ri = if (rec.front_face) 1.0 / self.refraction_index else self.refraction_index;
+
+            const direction = dir: {
+                const unit_direction = r.direction.normalized();
+                const cos_theta = @min(1.0, Vec3.dot(unit_direction.negate(), rec.normal));
+                const sin_theta = @sqrt(1.0 - cos_theta * cos_theta);
+                const cannot_refract = ri * sin_theta > 1.0;
+                if (cannot_refract) {
+                    break :dir Vec3.reflect(unit_direction, rec.normal);
+                }
+                break :dir Vec3.refract(unit_direction, rec.normal, ri);
+            };
+
+            return ScatterInfo{
+                .scattered = .init(rec.p, direction),
+                .attenuation = .white,
             };
         }
     },
@@ -161,6 +189,7 @@ const Material = union(enum) {
         return switch (self.*) {
             .lambertian => |l| l.scatter(rec),
             .metal => |m| m.scatter(r, rec),
+            .dielectric => |d| d.scatter(r, rec),
         };
     }
 };
@@ -199,8 +228,9 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
 
     const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.8, 0.8, 0) } };
     const center_material = Material{ .lambertian = .{ .albedo = .initF32(0.1, 0.2, 0.5) } };
-    const left_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.8, 0.8) } };
-    const right_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.6, 0.2) } };
+    // const left_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.8, 0.8), .fuzz = 0.3 } };
+    const left_material = Material{ .dielectric = .{ .refraction_index = 1.0 / 1.33 } };
+    const right_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.6, 0.2), .fuzz = 1.0 } };
 
     try hittables.append(alloc, .{
         .sphere = .{
@@ -234,7 +264,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         },
     });
 
-    const samples_per_pixel = 100;
+    const samples_per_pixel = 10;
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
     const pixels = try alloc.alloc(Color3, spec.width * spec.height);

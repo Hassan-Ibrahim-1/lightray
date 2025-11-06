@@ -950,7 +950,7 @@ pub const Vec3 = extern struct {
         n: Vec3,
         etai_over_etat: f32,
     ) Vec3 {
-        const cos_theta = @min(dot(uv.negate(), n.*), 1.0);
+        const cos_theta = @min(dot(uv.negate(), n), 1.0);
         const r_out_perp = uv
             .add(n.mulValue(cos_theta))
             .mulValue(etai_over_etat);
