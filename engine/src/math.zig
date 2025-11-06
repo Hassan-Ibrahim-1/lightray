@@ -935,7 +935,7 @@ pub const Vec3 = extern struct {
 
     /// Returns true if the vector is close to 0 in all dimensions
     pub fn nearZero(self: Vec3) bool {
-        const s = std.math.pow(f32, 1, -8);
+        const s = std.math.pow(f32, 1, -6);
         return (@abs(self.x) < s) and (@abs(self.y) < s) and (@abs(self.z) < s);
     }
 

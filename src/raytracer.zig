@@ -117,6 +117,7 @@ const Hittable = union(enum) {
         var rec: HitRecord = undefined;
         rec.t = root;
         rec.p = r.at(root);
+        rec.material = s.material;
         rec.setFaceNormal(r, rec.p.sub(s.position).divValue(s.radius));
         return rec;
     }
@@ -132,10 +133,10 @@ const Material = union(enum) {
         albedo: Color3,
 
         fn scatter(self: *const @This(), rec: HitRecord) ?ScatterInfo {
-            var scatter_direction = rec.normal.add(Vec3.randomNormalized());
-            if (scatter_direction.nearZero()) {
-                scatter_direction = rec.normal;
-            }
+            const scatter_direction = Vec3.randomOnHemisphere(rec.normal);
+            // if (scatter_direction.nearZero()) {
+            //     scatter_direction = rec.normal;
+            // }
             return ScatterInfo{
                 .scattered = .init(rec.p, scatter_direction),
                 .attenuation = self.albedo,
@@ -195,10 +196,31 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     var hittables: std.ArrayList(Hittable) = .empty;
     defer hittables.deinit(alloc);
 
+    const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.8, 0.8, 0) } };
+    const center_material = Material{ .lambertian = .{ .albedo = .initF32(0.1, 0.2, 0.5) } };
+    const left_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.8, 0.8) } };
+    const right_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.6, 0.2) } };
+
     try hittables.append(alloc, .{
         .sphere = .{
-            .position = .init(0, 0, -1),
-            .material = .{ .lambertian = .{ .albedo = .red } },
+            .position = .init(0, 0, -1.2),
+            .material = center_material,
+            .radius = 0.5,
+        },
+    });
+
+    try hittables.append(alloc, .{
+        .sphere = .{
+            .position = .init(1, 0, -1.0),
+            .material = right_material,
+            .radius = 0.5,
+        },
+    });
+
+    try hittables.append(alloc, .{
+        .sphere = .{
+            .position = .init(-1, 0, -1.0),
+            .material = left_material,
             .radius = 0.5,
         },
     });
@@ -206,12 +228,12 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     try hittables.append(alloc, .{
         .sphere = .{
             .position = .init(0, -100.5, -1),
-            .material = .{ .lambertian = .{ .albedo = .green } },
+            .material = ground_material,
             .radius = 100,
         },
     });
 
-    const samples_per_pixel = 10;
+    const samples_per_pixel = 100;
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
     const pixels = try alloc.alloc(Color3, spec.width * spec.height);
