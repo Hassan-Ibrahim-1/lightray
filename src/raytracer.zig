@@ -8,13 +8,7 @@ const builtin = @import("builtin");
 const engine = @import("engine");
 const cast = engine.cast;
 const math = engine.math;
-const res = engine.res;
-const fs = engine.fs;
 const input = engine.input;
-const renderer = engine.renderer;
-const debug = renderer.debug;
-const Framebuffer = res.Framebuffer;
-const RenderPass = renderer.RenderPass;
 const Vec3 = math.Vec3;
 const Image = engine.Image;
 pub const image_format = Image.Format.rgb;
@@ -164,7 +158,7 @@ const Material = union(enum) {
     dielectric: struct {
         refraction_index: f32,
 
-        fn scatter(self: *const @This(), r: Ray, rec: HitRecord) ?ScatterInfo {
+        fn scatter(self: @This(), r: Ray, rec: HitRecord) ?ScatterInfo {
             const ri = if (rec.front_face) 1.0 / self.refraction_index else self.refraction_index;
 
             const direction = dir: {

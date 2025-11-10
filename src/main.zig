@@ -92,6 +92,17 @@ fn update() !void {
 fn deinit() void {}
 
 pub fn main() !void {
+    // var gpa: std.heap.DebugAllocator(.{}) = .init;
+    // defer std.debug.assert(gpa.deinit() == .ok);
+    //
+    // const alloc = gpa.allocator();
+    //
+    // const image = try raytracer.raytrace(
+    //     alloc,
+    //     .{ .width = 1280, .height = 720 },
+    // );
+    // defer alloc.free(image.data);
+
     defer log.info("TERMINATED", .{});
 
     if (builtin.os.tag == .linux) {
@@ -102,8 +113,8 @@ pub fn main() !void {
         });
     } else {
         try engine.init(&.{
-            .width = 1920,
-            .height = 1080,
+            .width = 1280,
+            .height = 720,
             .name = "lightray",
         });
     }
