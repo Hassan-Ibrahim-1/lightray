@@ -166,7 +166,7 @@ const Material = union(enum) {
                 const cos_theta = @min(1.0, Vec3.dot(unit_direction.negate(), rec.normal));
                 const sin_theta = @sqrt(1.0 - cos_theta * cos_theta);
                 const cannot_refract = ri * sin_theta > 1.0;
-                if (cannot_refract) {
+                if (cannot_refract or reflectance(cos_theta, ri) > math.randomFloat01(f32)) {
                     break :dir Vec3.reflect(unit_direction, rec.normal);
                 }
                 break :dir Vec3.refract(unit_direction, rec.normal, ri);
@@ -176,6 +176,12 @@ const Material = union(enum) {
                 .scattered = .init(rec.p, direction),
                 .attenuation = .white,
             };
+        }
+
+        fn reflectance(cosine: f32, refraction_index: f32) f32 {
+            const r = (1 - refraction_index) / (1 + refraction_index);
+            const r0 = r * r;
+            return r0 + (1 - r0) * std.math.pow(f32, (1 - cosine), 5);
         }
     },
 
@@ -223,7 +229,8 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.8, 0.8, 0) } };
     const center_material = Material{ .lambertian = .{ .albedo = .initF32(0.1, 0.2, 0.5) } };
     // const left_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.8, 0.8), .fuzz = 0.3 } };
-    const left_material = Material{ .dielectric = .{ .refraction_index = 1.0 / 1.33 } };
+    const left_material = Material{ .dielectric = .{ .refraction_index = 1.5 } };
+    const bubble_material = Material{ .dielectric = .{ .refraction_index = 1.0 / 1.5 } };
     const right_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.6, 0.2), .fuzz = 1.0 } };
 
     try hittables.append(alloc, .{
@@ -247,6 +254,14 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
             .position = .init(-1, 0, -1.0),
             .material = left_material,
             .radius = 0.5,
+        },
+    });
+
+    try hittables.append(alloc, .{
+        .sphere = .{
+            .position = .init(-1, 0, -1.0),
+            .material = bubble_material,
+            .radius = 0.4,
         },
     });
 

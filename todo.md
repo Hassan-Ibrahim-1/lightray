@@ -10,6 +10,8 @@ fix release mode asap, 5x better performance.
 
 -- framebuffer texture broken on macos
 
+Look up how shlick's reflectance approximation works.
+
 ----------------------------------------------------------------------------------------------------------------
 
 figure out the math for the raytracer. don't rush

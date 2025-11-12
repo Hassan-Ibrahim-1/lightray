@@ -31,7 +31,7 @@ pub fn toDegrees(rad: f32) f32 {
     return rad * (180.0 / pi);
 }
 
-fn randomFloat01(T: type) T {
+pub fn randomFloat01(T: type) T {
     return rand.random().float(T);
 }
 
