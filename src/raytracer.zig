@@ -25,15 +25,21 @@ const Viewport = struct {
     pixel_delta_v: Vec3,
     top_left_pixel: Vec3,
 
+    /// degrees
+    vertical_fov: f32,
+
     fn init(
         aspect_ratio: f32,
         image_width: u32,
         focal_length: f32,
         camera_center: Vec3,
+        vertical_fov: f32,
     ) Viewport {
         const image_height = @max(1, cast.as(f32, image_width) / aspect_ratio);
 
-        const vp_height = 2.0;
+        const theta = std.math.degreesToRadians(vertical_fov);
+        const h = @tan(theta / 2);
+        const vp_height = 2.0 * h * focal_length;
         const vp_width = vp_height * aspect_ratio;
 
         const vp_u = Vec3.init(vp_width, 0, 0);
@@ -55,6 +61,7 @@ const Viewport = struct {
             .pixel_delta_u = pixel_delta_u,
             .pixel_delta_v = pixel_delta_v,
             .top_left_pixel = top_left_pixel,
+            .vertical_fov = vertical_fov,
         };
     }
 };
@@ -221,55 +228,29 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     const camera_center = Vec3.zero;
     const focal_length = 1.0;
 
-    const viewport = Viewport.init(16.0 / 9.0, spec.width, focal_length, camera_center);
+    const viewport = Viewport.init(16.0 / 9.0, spec.width, focal_length, camera_center, 155);
 
     var hittables: std.ArrayList(Hittable) = .empty;
     defer hittables.deinit(alloc);
 
-    const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.8, 0.8, 0) } };
-    const center_material = Material{ .lambertian = .{ .albedo = .initF32(0.1, 0.2, 0.5) } };
-    // const left_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.8, 0.8), .fuzz = 0.3 } };
-    const left_material = Material{ .dielectric = .{ .refraction_index = 1.5 } };
-    const bubble_material = Material{ .dielectric = .{ .refraction_index = 1.0 / 1.5 } };
-    const right_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.6, 0.2), .fuzz = 1.0 } };
+    const material_left = Material{ .lambertian = .{ .albedo = .red } };
+    const material_right = Material{ .lambertian = .{ .albedo = .blue } };
+
+    const radius = @cos(std.math.pi / 4.0);
 
     try hittables.append(alloc, .{
         .sphere = .{
-            .position = .init(0, 0, -1.2),
-            .material = center_material,
-            .radius = 0.5,
+            .material = material_left,
+            .position = .init(-radius, 0, -1),
+            .radius = radius,
         },
     });
 
     try hittables.append(alloc, .{
         .sphere = .{
-            .position = .init(1, 0, -1.0),
-            .material = right_material,
-            .radius = 0.5,
-        },
-    });
-
-    try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(-1, 0, -1.0),
-            .material = left_material,
-            .radius = 0.5,
-        },
-    });
-
-    try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(-1, 0, -1.0),
-            .material = bubble_material,
-            .radius = 0.4,
-        },
-    });
-
-    try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(0, -100.5, -1),
-            .material = ground_material,
-            .radius = 100,
+            .material = material_right,
+            .position = .init(radius, 0, -1),
+            .radius = radius,
         },
     });
 

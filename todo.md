@@ -12,6 +12,8 @@ fix release mode asap, 5x better performance.
 
 Look up how shlick's reflectance approximation works.
 
+what does field of view actually do? render a frustum to figure out.
+
 ----------------------------------------------------------------------------------------------------------------
 
 figure out the math for the raytracer. don't rush
