@@ -15,7 +15,6 @@ const Vec3 = math.Vec3;
 const raytracer = @import("raytracer.zig");
 
 const log = engine.debug.log.scoped(.main);
-const cube_len: usize = 5000;
 
 var fb_handle: Framebuffer.Handle = undefined;
 var rt_image: engine.Image = undefined;

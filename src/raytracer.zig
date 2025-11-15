@@ -30,23 +30,26 @@ const Viewport = struct {
         image_width: u32,
         camera: *const Camera,
     ) Viewport {
-        const image_height = @max(1, cast.as(f32, image_width) / aspect_ratio);
+        const image_height: i32 = @intFromFloat(
+            @max(1, cast.as(f32, image_width) / aspect_ratio),
+        );
 
         const theta = std.math.degreesToRadians(camera.vertical_fov);
         const h = @tan(theta / 2);
         const vp_height = 2.0 * h * camera.focal_length;
-        const vp_width = vp_height * aspect_ratio;
+        const vp_width = vp_height *
+            (cast.as(f32, image_width) / cast.as(f32, image_height));
 
-        const vp_u = Vec3.init(vp_width, 0, 0).mul(camera.right);
-        const vp_v = Vec3.init(0, -vp_height, 0).mul(camera.up);
+        const vp_u = camera.right.mulValue(vp_width);
+        const vp_v = camera.up.mulValue(-vp_height);
 
         const pixel_delta_u = vp_u.divValue(cast.as(f32, image_width));
         const pixel_delta_v = vp_v.divValue(cast.as(f32, image_height));
 
-        const vp_center = camera.position.sub(
-            Vec3.init(0, 0, camera.focal_length).mul(camera.front),
-        );
+        const vp_center = camera.position;
+
         const vp_upper_left = vp_center
+            .sub(camera.front.mulValue(camera.focal_length))
             .sub(vp_u.mulValue(0.5))
             .sub(vp_v.mulValue(0.5));
 
@@ -256,7 +259,7 @@ pub const ImageSpec = struct {
 
 pub const Error = Allocator.Error || Io.Writer.Error;
 
-const max_depth = 500;
+const max_depth = 50;
 
 /// image format is always rgb
 pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
@@ -264,7 +267,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         Vec3.init(-2, 2, 1),
         Vec3.init(0, 0, -1),
         Vec3.init(0, 1, 0),
-        135,
+        20,
     );
 
     const viewport = Viewport.init(
