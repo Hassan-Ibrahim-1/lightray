@@ -52,10 +52,11 @@ fn init(rp: *res.ResourcePool) !void {
 
     renderer.setRenderTexture(ca.handle);
 
-    std.fs.cwd().makeDir("renders") catch |err|
+    std.fs.cwd().makeDir("renders") catch |err| {
         if (err != error.PathAlreadyExists) {
             return err;
-        };
+        }
+    };
 }
 
 var input_buf: [1024]u8 = @splat(0);

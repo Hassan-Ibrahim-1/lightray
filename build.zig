@@ -46,7 +46,7 @@ pub fn build(b: *std.Build) void {
     const emit_bin = b.option(
         bool,
         "emit_bin",
-        "don't emit a binary",
+        "emit a binary",
     ) orelse true;
 
     const opts = b.addOptions();
