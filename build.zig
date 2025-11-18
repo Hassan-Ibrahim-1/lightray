@@ -43,6 +43,12 @@ pub fn build(b: *std.Build) void {
         "output of raytracer if use_engine is disabled. default is <render.png>",
     ) orelse "render.png";
 
+    const emit_bin = b.option(
+        bool,
+        "emit_bin",
+        "don't emit a binary",
+    ) orelse true;
+
     const opts = b.addOptions();
     opts.addOption(bool, "use_engine", use_engine);
     opts.addOption([]const u8, "render_out", render_out);
@@ -55,7 +61,11 @@ pub fn build(b: *std.Build) void {
         .use_llvm = use_llvm,
     });
 
-    b.installArtifact(exe);
+    if (emit_bin) {
+        b.installArtifact(exe);
+    } else {
+        b.getInstallStep().dependOn(&exe.step);
+    }
 
     const run_step = b.step("run", "Run the app");
 
