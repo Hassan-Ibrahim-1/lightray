@@ -13,6 +13,7 @@ const Framebuffer = res.Framebuffer;
 const RenderPass = renderer.RenderPass;
 const Vec3 = math.Vec3;
 const raytracer = @import("raytracer.zig");
+const opts = @import("opts");
 
 const log = engine.debug.log.scoped(.main);
 
@@ -91,38 +92,41 @@ fn update() !void {
 fn deinit() void {}
 
 pub fn main() !void {
-    // var gpa: std.heap.DebugAllocator(.{}) = .init;
-    // defer std.debug.assert(gpa.deinit() == .ok);
-    //
-    // const alloc = gpa.allocator();
-    //
-    // const image = try raytracer.raytrace(
-    //     alloc,
-    //     .{ .width = 1280, .height = 720 },
-    // );
-    // defer alloc.free(image.data);
-    //
-    // try image.writePng("render.png");
+    if (opts.use_engine) {
+        defer log.info("TERMINATED", .{});
 
-    defer log.info("TERMINATED", .{});
-
-    if (builtin.os.tag == .linux) {
-        try engine.init(&.{
-            .width = 3840,
-            .height = 2160,
-            .name = "lightray",
+        if (builtin.os.tag == .linux) {
+            try engine.init(&.{
+                .width = 3840,
+                .height = 2160,
+                .name = "lightray",
+            });
+        } else {
+            try engine.init(&.{
+                .width = 1280,
+                .height = 720,
+                .name = "lightray",
+            });
+        }
+        defer engine.deinit();
+        engine.run(&.{
+            .init = init,
+            .update = update,
+            .deinit = deinit,
         });
     } else {
-        try engine.init(&.{
-            .width = 1280,
-            .height = 720,
-            .name = "lightray",
-        });
+        var gpa: std.heap.DebugAllocator(.{}) = .init;
+        defer std.debug.assert(gpa.deinit() == .ok);
+
+        const alloc = gpa.allocator();
+
+        const image = try raytracer.raytrace(
+            alloc,
+            .{ .width = 1280, .height = 720 },
+        );
+        defer alloc.free(image.data);
+
+        const out = std.fmt.comptimePrint("{s}", .{opts.render_out});
+        try image.writePng(out);
     }
-    defer engine.deinit();
-    engine.run(&.{
-        .init = init,
-        .update = update,
-        .deinit = deinit,
-    });
 }

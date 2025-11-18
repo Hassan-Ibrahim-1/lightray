@@ -12,13 +12,56 @@ const input = engine.input;
 const Vec3 = math.Vec3;
 const Image = engine.Image;
 pub const image_format = Image.Format.rgb;
-const Ray = math.Ray;
 
 pub const Color3 = @import("raytracer/Color3.zig");
 pub const Interval = @import("raytracer/Interval.zig");
 
 const log = engine.debug.log.scoped(.raytracer);
 const cube_len: usize = 5000;
+
+const Ray = struct {
+    const Self = @This();
+
+    origin: Vec3,
+    direction: Vec3,
+    /// I don't like that this has a time field, this
+    /// should be tracked by objects themselves and not by
+    /// this struct
+    time: f32,
+
+    pub const zero: Ray = .{
+        .origin = .zero,
+        .direction = .zero,
+        .time = 0,
+    };
+
+    pub fn init(origin: Vec3, direction: Vec3, time: f32) Self {
+        return .{
+            .origin = origin,
+            .direction = direction,
+            .time = time,
+        };
+    }
+
+    pub fn at(self: Self, t: f32) Vec3 {
+        // P(t) = A + tB
+        const tb = self.direction.mulValue(t);
+        return Vec3.add(self.origin, tb);
+    }
+
+    /// returns the t value where intersection occurs.
+    pub fn intersectsWithSphere(self: Ray, sphere: Sphere) ?f32 {
+        const oc = sphere.position.sub(self.origin);
+        const a = self.direction.lengthSquared();
+        const h = self.direction.dot(oc);
+        const c = oc.lengthSquared() - (sphere.radius * sphere.radius);
+        const discriminant = h * h - a * c;
+        if (discriminant < 0) {
+            return null;
+        }
+        return (h - @sqrt(discriminant)) / a;
+    }
+};
 
 const Viewport = struct {
     pixel_delta_u: Vec3,
@@ -139,9 +182,33 @@ const HitRecord = struct {
 };
 
 const Sphere = struct {
-    position: Vec3,
+    /// `position` is a ray because the sphere can move
+    /// idk if I like this strategy; think more about how
+    /// to represent moving objects later
+    position: Ray,
     radius: f32,
     material: Material,
+
+    fn initStatic(position: Vec3, radius: f32, material: Material) Sphere {
+        return .{
+            .position = .init(position, .zero, 0),
+            .radius = radius,
+            .material = material,
+        };
+    }
+
+    fn initMovable(
+        position: Vec3,
+        end: Vec3,
+        radius: f32,
+        material: Material,
+    ) Sphere {
+        return .{
+            .position = .init(position, end.sub(position), 0),
+            .radius = radius,
+            .material = material,
+        };
+    }
 };
 
 const Hittable = union(enum) {
@@ -156,7 +223,8 @@ const Hittable = union(enum) {
     fn sphereHit(s: Sphere, r: Ray, ray_t: Interval) ?HitRecord {
         assert(s.radius >= 0);
 
-        const oc = s.position.sub(r.origin);
+        const current_position = s.position.at(r.time);
+        const oc = current_position.sub(r.origin);
         const a = r.direction.lengthSquared();
         const h = r.direction.dot(oc);
         const c = oc.lengthSquared() - (s.radius * s.radius);
@@ -178,7 +246,7 @@ const Hittable = union(enum) {
         rec.t = root;
         rec.p = r.at(root);
         rec.material = s.material;
-        rec.setFaceNormal(r, rec.p.sub(s.position).divValue(s.radius));
+        rec.setFaceNormal(r, rec.p.sub(current_position).divValue(s.radius));
         return rec;
     }
 };
@@ -192,13 +260,13 @@ const Material = union(enum) {
     lambertian: struct {
         albedo: Color3,
 
-        fn scatter(self: *const @This(), rec: HitRecord) ?ScatterInfo {
+        fn scatter(self: *const @This(), r: Ray, rec: HitRecord) ?ScatterInfo {
             const scatter_direction = Vec3.randomOnHemisphere(rec.normal);
             // if (scatter_direction.nearZero()) {
             //     scatter_direction = rec.normal;
             // }
             return ScatterInfo{
-                .scattered = .init(rec.p, scatter_direction),
+                .scattered = .init(rec.p, scatter_direction, r.time),
                 .attenuation = self.albedo,
             };
         }
@@ -215,7 +283,7 @@ const Material = union(enum) {
                 .add(Vec3.randomNormalized().mulValue(self.fuzz));
 
             return ScatterInfo{
-                .scattered = .init(rec.p, reflected),
+                .scattered = .init(rec.p, reflected, r.time),
                 .attenuation = self.albedo,
             };
         }
@@ -239,7 +307,7 @@ const Material = union(enum) {
             };
 
             return ScatterInfo{
-                .scattered = .init(rec.p, direction),
+                .scattered = .init(rec.p, direction, r.time),
                 .attenuation = .white,
             };
         }
@@ -253,7 +321,7 @@ const Material = union(enum) {
 
     fn scatter(self: *const Material, r: Ray, rec: HitRecord) ?ScatterInfo {
         return switch (self.*) {
-            .lambertian => |l| l.scatter(rec),
+            .lambertian => |l| l.scatter(r, rec),
             .metal => |m| m.scatter(r, rec),
             .dielectric => |d| d.scatter(r, rec),
         };
@@ -289,7 +357,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         Vec3.init(0, 0, 0),
         Vec3.init(0, 1, 0),
         20,
-        0.4,
+        0.2,
         8.0,
     );
 
@@ -304,14 +372,14 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
 
     const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.5, 0.5, 0.5) } };
     try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(0, -1000, 0),
-            .radius = 1000,
-            .material = ground_material,
-        },
+        .sphere = .initStatic(
+            .init(0, -1000, 0),
+            1000,
+            ground_material,
+        ),
     });
 
-    const count = 1;
+    const count = 6;
     var a: i32 = -count;
     while (a < count) : (a += 1) {
         var b: i32 = -count;
@@ -322,16 +390,14 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
                 0.2,
                 cast.as(f32, b) + 0.9 * math.randomFloat01(f32),
             );
-            if (center.sub(.init(4, 0.2, 0)).length() > 0.9) {
+            const radius = 0.2;
+            if (center.sub(.init(4, radius, 0)).length() > 0.9) {
                 if (choose_mat < 0.8) {
                     const albedo = Color3.random().mulColor(Color3.random());
                     const material = Material{ .lambertian = .{ .albedo = albedo } };
+                    const center2 = center.add(Vec3.init(0, math.randomFloat(f32, 0, 0.5), 0));
                     try hittables.append(alloc, .{
-                        .sphere = .{
-                            .position = center,
-                            .radius = 0.2,
-                            .material = material,
-                        },
+                        .sphere = .initMovable(center, center2, radius, material),
                     });
                 } else if (choose_mat < 0.95) {
                     const blue = math.randomFloat01(f32);
@@ -339,20 +405,20 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
                     const fuzz = math.randomFloat(f32, 0, 0.5);
                     const material = Material{ .metal = .{ .albedo = albedo, .fuzz = fuzz } };
                     try hittables.append(alloc, .{
-                        .sphere = .{
-                            .position = center,
-                            .radius = 0.2,
-                            .material = material,
-                        },
+                        .sphere = .initStatic(
+                            center,
+                            radius,
+                            material,
+                        ),
                     });
                 } else {
                     const material = Material{ .dielectric = .{ .refraction_index = 1.5 } };
                     try hittables.append(alloc, .{
-                        .sphere = .{
-                            .position = center,
-                            .radius = 0.2,
-                            .material = material,
-                        },
+                        .sphere = .initStatic(
+                            center,
+                            radius,
+                            material,
+                        ),
                     });
                 }
             }
@@ -361,32 +427,32 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
 
     const material1 = Material{ .dielectric = .{ .refraction_index = 1.5 } };
     try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(0, 1, 0),
-            .radius = 1.0,
-            .material = material1,
-        },
+        .sphere = .initStatic(
+            .init(0, 1, 0),
+            1.0,
+            material1,
+        ),
     });
 
     const material2 = Material{ .lambertian = .{ .albedo = .initF32(0.4, 0.2, 0.1) } };
     try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(-4, 1, 0),
-            .radius = 1.0,
-            .material = material2,
-        },
+        .sphere = .initStatic(
+            .init(-4, 1, 0),
+            1.0,
+            material2,
+        ),
     });
 
     const material3 = Material{ .metal = .{ .albedo = .initF32(0.7, 0.6, 0.5), .fuzz = 0.0 } };
     try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(4, 1, 0),
-            .radius = 1.0,
-            .material = material3,
-        },
+        .sphere = .initStatic(
+            .init(4, 1, 0),
+            1.0,
+            material3,
+        ),
     });
 
-    const samples_per_pixel = 20;
+    const samples_per_pixel = 60;
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
     const pixels = try alloc.alloc(Color3, spec.width * spec.height);
@@ -468,8 +534,10 @@ fn raytraceRow(
                     else
                         camera.defocusDiskSample();
 
+                const ray_time = math.randomFloat01(f32);
+
                 const ray_direction = pixel_center.sub(camera.position);
-                const r = Ray.init(ray_origin, ray_direction);
+                const r = Ray.init(ray_origin, ray_direction, ray_time);
                 col = col.add(rayColor(r, hittables, max_depth).clampedVec3());
             }
             break :col Color3.fromVec3(col.mulValue(pixel_sample_scale));

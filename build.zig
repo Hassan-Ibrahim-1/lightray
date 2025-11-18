@@ -31,6 +31,24 @@ pub fn build(b: *std.Build) void {
         "force compilation using llvm",
     ) orelse true;
 
+    const use_engine = b.option(
+        bool,
+        "engine",
+        "open raytraced image in engine, otherwise saved to render_out",
+    ) orelse true;
+
+    const render_out = b.option(
+        []const u8,
+        "render_out",
+        "output of raytracer if use_engine is disabled. default is <render.png>",
+    ) orelse "render.png";
+
+    const opts = b.addOptions();
+    opts.addOption(bool, "use_engine", use_engine);
+    opts.addOption([]const u8, "render_out", render_out);
+
+    mod.addOptions("opts", opts);
+
     const exe = b.addExecutable(.{
         .name = "lightray",
         .root_module = mod,

@@ -2,8 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 
-const options = @import("config");
-
 const engine = @import("../engine.zig");
 const Texture = engine.Texture;
 const gl = engine.gl;

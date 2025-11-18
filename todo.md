@@ -11,6 +11,8 @@ Current roadmap:
 per pixel operations rather than per row operations
 * get on to raytracing interesting things (listed below)
 
+https://github.com/RayTracing/raytracing.github.io/wiki/Further-Readings
+
 visualize randomOnHemisphere and random on a sphere + cube
 
 leave the engine running for a bit, i think there's a leak?
