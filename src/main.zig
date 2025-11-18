@@ -91,36 +91,38 @@ fn update() !void {
 fn deinit() void {}
 
 pub fn main() !void {
-    // var gpa: std.heap.DebugAllocator(.{}) = .init;
-    // defer std.debug.assert(gpa.deinit() == .ok);
-    //
-    // const alloc = gpa.allocator();
-    //
-    // const image = try raytracer.raytrace(
-    //     alloc,
-    //     .{ .width = 1280, .height = 720 },
-    // );
-    // defer alloc.free(image.data);
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer std.debug.assert(gpa.deinit() == .ok);
 
-    defer log.info("TERMINATED", .{});
+    const alloc = gpa.allocator();
 
-    if (builtin.os.tag == .linux) {
-        try engine.init(&.{
-            .width = 3840,
-            .height = 2160,
-            .name = "lightray",
-        });
-    } else {
-        try engine.init(&.{
-            .width = 1280,
-            .height = 720,
-            .name = "lightray",
-        });
-    }
-    defer engine.deinit();
-    engine.run(&.{
-        .init = init,
-        .update = update,
-        .deinit = deinit,
-    });
+    const image = try raytracer.raytrace(
+        alloc,
+        .{ .width = 1920, .height = 1080 },
+    );
+    defer alloc.free(image.data);
+
+    try image.writePng("render.png");
+
+    // defer log.info("TERMINATED", .{});
+    //
+    // if (builtin.os.tag == .linux) {
+    //     try engine.init(&.{
+    //         .width = 3840,
+    //         .height = 2160,
+    //         .name = "lightray",
+    //     });
+    // } else {
+    //     try engine.init(&.{
+    //         .width = 1280,
+    //         .height = 720,
+    //         .name = "lightray",
+    //     });
+    // }
+    // defer engine.deinit();
+    // engine.run(&.{
+    //     .init = init,
+    //     .update = update,
+    //     .deinit = deinit,
+    // });
 }

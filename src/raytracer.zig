@@ -66,31 +66,41 @@ const Viewport = struct {
 };
 
 const Camera = struct {
-    // v
-    up: Vec3,
-    // u
-    right: Vec3,
-    // w
-    front: Vec3,
+    up: Vec3, // v
+    right: Vec3, // u
+    front: Vec3, // w
 
     world_up: Vec3,
     position: Vec3,
     look_at: Vec3,
 
     focal_length: f32,
-
     vertical_fov: f32,
+
+    defocus_angle: f32,
+    focus_distance: f32,
+
+    defocus_disk_horizontal_radius: Vec3, // u
+    defocus_disk_vertical_radius: Vec3, // v
 
     fn init(
         position: Vec3,
         look_at: Vec3,
         world_up: Vec3,
         vertical_fov: f32,
+        defocus_angle: f32,
+        focus_distance: f32,
     ) Camera {
         const front = position.sub(look_at).normalized();
         const right = Vec3.cross(world_up, front);
         const up = Vec3.cross(front, right);
         const focal_length = position.sub(look_at).length();
+        const defocus_radius = focus_distance * @tan(
+            std.math.degreesToRadians(defocus_angle / 2.0),
+        );
+        const defocus_disk_horizontal_radius = right.mulValue(defocus_radius);
+        const defocus_disk_vertical_radius = up.mulValue(defocus_radius);
+
         return .{
             .up = up,
             .right = right,
@@ -100,7 +110,18 @@ const Camera = struct {
             .look_at = look_at,
             .focal_length = focal_length,
             .vertical_fov = vertical_fov,
+            .defocus_angle = defocus_angle,
+            .focus_distance = focus_distance,
+            .defocus_disk_horizontal_radius = defocus_disk_horizontal_radius,
+            .defocus_disk_vertical_radius = defocus_disk_vertical_radius,
         };
+    }
+
+    fn defocusDiskSample(self: *const Camera) Vec3 {
+        const p = Vec3.randomOnUnitDisk();
+        const horizontal = self.defocus_disk_horizontal_radius.mulValue(p.x);
+        const vertical = self.defocus_disk_vertical_radius.mulValue(p.y);
+        return self.position.add(horizontal).add(vertical);
     }
 };
 
@@ -259,7 +280,7 @@ pub const ImageSpec = struct {
 
 pub const Error = Allocator.Error || Io.Writer.Error;
 
-const max_depth = 50;
+const max_depth = 100;
 
 /// image format is always rgb
 pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
@@ -268,6 +289,8 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         Vec3.init(0, 0, -1),
         Vec3.init(0, 1, 0),
         90,
+        10,
+        0.15,
     );
 
     const viewport = Viewport.init(
@@ -279,7 +302,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     var hittables: std.ArrayList(Hittable) = .empty;
     defer hittables.deinit(alloc);
 
-    const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.8, 0.8, 0) } };
+    const ground_material = Material{ .dielectric = .{ .refraction_index = 1.0 / 2.33 } };
     const center_material = Material{ .lambertian = .{ .albedo = .initF32(0.1, 0.2, 0.5) } };
     // const left_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.8, 0.8), .fuzz = 0.3 } };
     const left_material = Material{ .dielectric = .{ .refraction_index = 1.5 } };
@@ -326,7 +349,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         },
     });
 
-    const samples_per_pixel = 10;
+    const samples_per_pixel = 500;
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
     const pixels = try alloc.alloc(Color3, spec.width * spec.height);
@@ -355,7 +378,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
                 samples_per_pixel,
                 pixel_sample_scale,
                 &viewport,
-                camera.position,
+                &camera,
                 hittables.items,
                 color_out,
             },
@@ -383,7 +406,7 @@ fn raytraceRow(
     samples_per_pixel: u32,
     pixel_sample_scale: f32,
     viewport: *const Viewport,
-    camera_center: Vec3,
+    camera: *const Camera,
     hittables: []const Hittable,
     color_out: []Color3,
 ) void {
@@ -402,8 +425,14 @@ fn raytraceRow(
                     .add(viewport.pixel_delta_u.mulValue(cast.as(f32, i) + sample_square.x))
                     .add(viewport.pixel_delta_v.mulValue(cast.as(f32, row) + sample_square.y));
 
-                const ray_direction = pixel_center.sub(camera_center);
-                const r = Ray.init(camera_center, ray_direction);
+                const ray_origin =
+                    if (camera.defocus_angle <= 0)
+                        camera.position
+                    else
+                        camera.defocusDiskSample();
+
+                const ray_direction = pixel_center.sub(camera.position);
+                const r = Ray.init(ray_origin, ray_direction);
                 col = col.add(rayColor(r, hittables, max_depth).clampedVec3());
             }
             break :col Color3.fromVec3(col.mulValue(pixel_sample_scale));
@@ -411,8 +440,6 @@ fn raytraceRow(
         color_out[i] = pixel_color.toGamma();
     }
 }
-
-const use_lambertian_diffuse = true;
 
 fn rayColor(ray: Ray, hittables: []const Hittable, depth: u32) Color3 {
     if (depth == 0) return .black;

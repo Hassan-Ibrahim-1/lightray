@@ -933,6 +933,13 @@ pub const Vec3 = extern struct {
         }
     }
 
+    pub inline fn randomOnUnitDisk() Vec3 {
+        while (true) {
+            const p = Vec3.init(randomFloat(f32, -1, 1), randomFloat(f32, -1, 1), 0);
+            if (p.lengthSquared() < 1) return p;
+        }
+    }
+
     /// Returns true if the vector is close to 0 in all dimensions
     pub fn nearZero(self: Vec3) bool {
         const s = std.math.pow(f32, 1, -6);

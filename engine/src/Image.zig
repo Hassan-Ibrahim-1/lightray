@@ -87,7 +87,7 @@ pub fn freeFromFile(self: *Image) void {
     self.* = undefined;
 }
 
-pub fn writePng(self: *Image, filename: [:0]const u8) !void {
+pub fn writePng(self: *const Image, filename: [:0]const u8) !void {
     const stride = cast.as(c_int, self.width * self.format.channels());
     const e = c.stbi_write_png(
         filename,
