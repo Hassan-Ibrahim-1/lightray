@@ -336,6 +336,8 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     try thread_pool.init(.{ .allocator = alloc });
     defer thread_pool.deinit();
 
+    log.info("using {} threads", .{thread_pool.threads.len});
+
     var wait_group: std.Thread.WaitGroup = .{};
 
     var timer = try std.time.Timer.start();

@@ -75,13 +75,8 @@ fn setupAttributePointers(T: type, attr_count: u4) u4 {
     }
 
     const ti = @typeInfo(T).@"struct";
-    log.info("stride: {}", .{stride});
     inline for (ti.fields) |field| {
         const offset = @offsetOf(T, field.name);
-        log.info(
-            "{s}: {s} = {}, {}",
-            .{ field.name, @typeName(field.type), attrs, offset },
-        );
         attrs = setVertexAttribute(field.type, attrs, stride, offset);
     }
     return attrs;
