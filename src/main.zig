@@ -98,7 +98,7 @@ pub fn main() !void {
 
     const image = try raytracer.raytrace(
         alloc,
-        .{ .width = 1920, .height = 1080 },
+        .{ .width = 1280, .height = 720 },
     );
     defer alloc.free(image.data);
 

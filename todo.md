@@ -14,6 +14,8 @@ Look up how shlick's reflectance approximation works.
 
 what does field of view actually do? render a frustum to figure out.
 
+be able to stitch together videos / animations from renders
+
 ----------------------------------------------------------------------------------------------------------------
 
 figure out the math for the raytracer. don't rush

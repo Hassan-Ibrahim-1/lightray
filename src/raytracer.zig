@@ -280,17 +280,17 @@ pub const ImageSpec = struct {
 
 pub const Error = Allocator.Error || Io.Writer.Error;
 
-const max_depth = 100;
+const max_depth = 50;
 
 /// image format is always rgb
 pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     const camera = Camera.init(
-        Vec3.init(-2, 2, 1),
-        Vec3.init(0, 0, -1),
+        Vec3.init(13, 2, 3),
+        Vec3.init(0, 0, 0),
         Vec3.init(0, 1, 0),
-        90,
+        20,
         10,
-        0.15,
+        0.2,
     );
 
     const viewport = Viewport.init(
@@ -302,50 +302,88 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     var hittables: std.ArrayList(Hittable) = .empty;
     defer hittables.deinit(alloc);
 
-    const ground_material = Material{ .dielectric = .{ .refraction_index = 1.0 / 2.33 } };
-    const center_material = Material{ .lambertian = .{ .albedo = .initF32(0.1, 0.2, 0.5) } };
-    // const left_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.8, 0.8), .fuzz = 0.3 } };
-    const left_material = Material{ .dielectric = .{ .refraction_index = 1.5 } };
-    const bubble_material = Material{ .dielectric = .{ .refraction_index = 1.0 / 1.5 } };
-    const right_material = Material{ .metal = .{ .albedo = .initF32(0.8, 0.6, 0.2), .fuzz = 1.0 } };
+    try hittables.ensureTotalCapacityPrecise(alloc, 2 * 11 * 11 + 4);
 
-    try hittables.append(alloc, .{
+    const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.5, 0.5, 0.5) } };
+    hittables.appendAssumeCapacity(.{
         .sphere = .{
-            .position = .init(0, 0, -1.2),
-            .material = center_material,
-            .radius = 0.5,
-        },
-    });
-
-    try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(1, 0, -1.0),
-            .material = right_material,
-            .radius = 0.5,
-        },
-    });
-
-    try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(-1, 0, -1.0),
-            .material = left_material,
-            .radius = 0.5,
-        },
-    });
-
-    try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(-1, 0, -1.0),
-            .material = bubble_material,
-            .radius = 0.4,
-        },
-    });
-
-    try hittables.append(alloc, .{
-        .sphere = .{
-            .position = .init(0, -100.5, -1),
+            .position = .init(0, -1000, 0),
+            .radius = 1000,
             .material = ground_material,
-            .radius = 100,
+        },
+    });
+
+    var a: i32 = -11;
+    while (a < 11) : (a += 1) {
+        var b: i32 = -11;
+        while (b < 11) : (b += 1) {
+            const choose_mat = math.randomFloat01(f32);
+            const center = Vec3.init(
+                cast.as(f32, a) + 0.9 * math.randomFloat01(f32),
+                0.2,
+                cast.as(f32, b) + 0.9 * math.randomFloat01(f32),
+            );
+            if (center.sub(.init(4, 0.2, 0)).length() > 0.9) {
+                if (choose_mat < 0.8) {
+                    const albedo = Color3.random().mulColor(Color3.random());
+                    const material = Material{ .lambertian = .{ .albedo = albedo } };
+                    hittables.appendAssumeCapacity(.{
+                        .sphere = .{
+                            .position = center,
+                            .radius = 0.2,
+                            .material = material,
+                        },
+                    });
+                } else if (choose_mat < 0.95) {
+                    const blue = math.randomFloat01(f32);
+                    const albedo = Color3.initF32(0.5, 1, blue);
+                    const fuzz = math.randomFloat(f32, 0, 0.5);
+                    const material = Material{ .metal = .{ .albedo = albedo, .fuzz = fuzz } };
+                    hittables.appendAssumeCapacity(.{
+                        .sphere = .{
+                            .position = center,
+                            .radius = 0.2,
+                            .material = material,
+                        },
+                    });
+                } else {
+                    const material = Material{ .dielectric = .{ .refraction_index = 1.5 } };
+                    hittables.appendAssumeCapacity(.{
+                        .sphere = .{
+                            .position = center,
+                            .radius = 0.2,
+                            .material = material,
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    const material1 = Material{ .dielectric = .{ .refraction_index = 1.5 } };
+    hittables.appendAssumeCapacity(.{
+        .sphere = .{
+            .position = .init(0, 1, 0),
+            .radius = 1.0,
+            .material = material1,
+        },
+    });
+
+    const material2 = Material{ .lambertian = .{ .albedo = .initF32(0.4, 0.2, 0.1) } };
+    hittables.appendAssumeCapacity(.{
+        .sphere = .{
+            .position = .init(-4, 1, 0),
+            .radius = 1.0,
+            .material = material2,
+        },
+    });
+
+    const material3 = Material{ .metal = .{ .albedo = .initF32(0.7, 0.6, 0.5), .fuzz = 0.0 } };
+    hittables.appendAssumeCapacity(.{
+        .sphere = .{
+            .position = .init(4, 1, 0),
+            .radius = 1.0,
+            .material = material3,
         },
     });
 
