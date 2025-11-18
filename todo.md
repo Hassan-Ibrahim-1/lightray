@@ -1,4 +1,16 @@
 # NEXT
+
+Current roadmap:
+
+* finish second book
+* raytracing triangles
+* converting engine.Scene to rt scene
+* visualizations for some math stuff
+* convert to compute shaders eventually
+* consider a different application of threads, maybe threads do
+per pixel operations rather than per row operations
+* get on to raytracing interesting things (listed below)
+
 visualize randomOnHemisphere and random on a sphere + cube
 
 leave the engine running for a bit, i think there's a leak?

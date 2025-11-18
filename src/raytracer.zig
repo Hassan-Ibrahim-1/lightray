@@ -36,7 +36,7 @@ const Viewport = struct {
 
         const theta = std.math.degreesToRadians(camera.vertical_fov);
         const h = @tan(theta / 2);
-        const vp_height = 2.0 * h * camera.focal_length;
+        const vp_height = 2.0 * h * camera.focus_distance;
         const vp_width = vp_height *
             (cast.as(f32, image_width) / cast.as(f32, image_height));
 
@@ -49,7 +49,7 @@ const Viewport = struct {
         const vp_center = camera.position;
 
         const vp_upper_left = vp_center
-            .sub(camera.front.mulValue(camera.focal_length))
+            .sub(camera.front.mulValue(camera.focus_distance))
             .sub(vp_u.mulValue(0.5))
             .sub(vp_v.mulValue(0.5));
 
@@ -289,8 +289,8 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         Vec3.init(0, 0, 0),
         Vec3.init(0, 1, 0),
         20,
-        10,
-        0.2,
+        0.4,
+        8.0,
     );
 
     const viewport = Viewport.init(
@@ -302,10 +302,8 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     var hittables: std.ArrayList(Hittable) = .empty;
     defer hittables.deinit(alloc);
 
-    try hittables.ensureTotalCapacityPrecise(alloc, 2 * 11 * 11 + 4);
-
     const ground_material = Material{ .lambertian = .{ .albedo = .initF32(0.5, 0.5, 0.5) } };
-    hittables.appendAssumeCapacity(.{
+    try hittables.append(alloc, .{
         .sphere = .{
             .position = .init(0, -1000, 0),
             .radius = 1000,
@@ -313,10 +311,11 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         },
     });
 
-    var a: i32 = -11;
-    while (a < 11) : (a += 1) {
-        var b: i32 = -11;
-        while (b < 11) : (b += 1) {
+    const count = 1;
+    var a: i32 = -count;
+    while (a < count) : (a += 1) {
+        var b: i32 = -count;
+        while (b < count) : (b += 1) {
             const choose_mat = math.randomFloat01(f32);
             const center = Vec3.init(
                 cast.as(f32, a) + 0.9 * math.randomFloat01(f32),
@@ -327,7 +326,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
                 if (choose_mat < 0.8) {
                     const albedo = Color3.random().mulColor(Color3.random());
                     const material = Material{ .lambertian = .{ .albedo = albedo } };
-                    hittables.appendAssumeCapacity(.{
+                    try hittables.append(alloc, .{
                         .sphere = .{
                             .position = center,
                             .radius = 0.2,
@@ -339,7 +338,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
                     const albedo = Color3.initF32(0.5, 1, blue);
                     const fuzz = math.randomFloat(f32, 0, 0.5);
                     const material = Material{ .metal = .{ .albedo = albedo, .fuzz = fuzz } };
-                    hittables.appendAssumeCapacity(.{
+                    try hittables.append(alloc, .{
                         .sphere = .{
                             .position = center,
                             .radius = 0.2,
@@ -348,7 +347,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
                     });
                 } else {
                     const material = Material{ .dielectric = .{ .refraction_index = 1.5 } };
-                    hittables.appendAssumeCapacity(.{
+                    try hittables.append(alloc, .{
                         .sphere = .{
                             .position = center,
                             .radius = 0.2,
@@ -361,7 +360,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     }
 
     const material1 = Material{ .dielectric = .{ .refraction_index = 1.5 } };
-    hittables.appendAssumeCapacity(.{
+    try hittables.append(alloc, .{
         .sphere = .{
             .position = .init(0, 1, 0),
             .radius = 1.0,
@@ -370,7 +369,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     });
 
     const material2 = Material{ .lambertian = .{ .albedo = .initF32(0.4, 0.2, 0.1) } };
-    hittables.appendAssumeCapacity(.{
+    try hittables.append(alloc, .{
         .sphere = .{
             .position = .init(-4, 1, 0),
             .radius = 1.0,
@@ -379,7 +378,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
     });
 
     const material3 = Material{ .metal = .{ .albedo = .initF32(0.7, 0.6, 0.5), .fuzz = 0.0 } };
-    hittables.appendAssumeCapacity(.{
+    try hittables.append(alloc, .{
         .sphere = .{
             .position = .init(4, 1, 0),
             .radius = 1.0,
@@ -387,7 +386,7 @@ pub fn raytrace(alloc: Allocator, spec: ImageSpec) !Image {
         },
     });
 
-    const samples_per_pixel = 500;
+    const samples_per_pixel = 20;
     const pixel_sample_scale = 1.0 / cast.as(f32, samples_per_pixel);
 
     const pixels = try alloc.alloc(Color3, spec.width * spec.height);
